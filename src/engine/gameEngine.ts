@@ -169,13 +169,16 @@ export function drawCard(state: GameState): GameState {
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (state.hasDrawn) return state;
   if (currentPlayer.isBlocked) {
+    // Blocked: mark hasDrawn=true and drawnCard=null (no card drawn).
+    // The caller (botTurn or performDraw in store) is responsible for calling nextTurn.
     return {
       ...state,
       hasDrawn: true,
-      message: `${currentPlayer.name} is BLOCKED! 🚫 Cannot draw.`,
+      drawnCard: null,
       players: state.players.map(p =>
         p.id === currentPlayer.id ? { ...p, isBlocked: false } : p
       ),
+      message: `${currentPlayer.name} is BLOCKED! 🚫 Turn skipped.`,
     };
   }
 
@@ -282,9 +285,9 @@ export function resolveEffect(state: GameState, targetPlayerId?: string, targetC
 
   switch (effect.type) {
     case 'peek_swap': {
-      if (!targetPlayerId) return state;
+      if (!targetPlayerId) return nextTurn({ ...state, pendingEffect: null });
       const target = state.players.find(p => p.id === targetPlayerId)!;
-      if (targetCardIndex === undefined) return state;
+      if (targetCardIndex === undefined) return nextTurn({ ...state, pendingEffect: null });
       if (accept) {
         // Swap: source gets target's card, target gets source's first card
         const sourceCardIdx = 0;
@@ -309,7 +312,7 @@ export function resolveEffect(state: GameState, targetPlayerId?: string, targetC
     }
 
     case 'shuffle': {
-      if (!targetPlayerId) return state;
+      if (!targetPlayerId) return nextTurn({ ...state, pendingEffect: null });
       const newPlayers = state.players.map(p =>
         p.id === targetPlayerId
           ? { ...p, hand: shuffleArray(p.hand), revealedCardIds: [] }
@@ -331,8 +334,8 @@ export function resolveEffect(state: GameState, targetPlayerId?: string, targetC
     }
 
     case 'as_i_wish': {
-      if (!targetPlayerId) return state;
-      if (targetCardIndex === undefined) return state;
+      if (!targetPlayerId) return nextTurn({ ...state, pendingEffect: null });
+      if (targetCardIndex === undefined) return nextTurn({ ...state, pendingEffect: null });
       const target = state.players.find(p => p.id === targetPlayerId)!;
       if (!accept) {
         // Remove the card from target
@@ -351,19 +354,19 @@ export function resolveEffect(state: GameState, targetPlayerId?: string, targetC
     }
 
     case 'play_again': {
-      // Current player gets another turn (we won't advance)
-      newState = {
+      // Current player gets another turn (reset so they can draw again)
+      return {
         ...state,
+        pendingEffect: null,
         hasDrawn: false,
         hasDiscarded: false,
         drawnCard: null,
-        message: `${sourcePlayer.name} plays again! 🔄 Everyone else skipped!`,
+        message: `${sourcePlayer.name} plays again! 🔄`,
       };
-      return { ...newState, pendingEffect: null };
     }
 
     case 'blocked': {
-      if (!targetPlayerId) return state;
+      if (!targetPlayerId) return nextTurn({ ...state, pendingEffect: null });
       const target = state.players.find(p => p.id === targetPlayerId)!;
       const newPlayers = state.players.map(p =>
         p.id === targetPlayerId ? { ...p, isBlocked: true } : p
@@ -373,9 +376,9 @@ export function resolveEffect(state: GameState, targetPlayerId?: string, targetC
     }
 
     case 'pick_from_deck': {
-      if (targetCardIndex === undefined) return state;
+      if (targetCardIndex === undefined) return nextTurn({ ...state, pendingEffect: null });
       const pickedCard = state.drawPile[targetCardIndex];
-      if (!pickedCard) return state;
+      if (!pickedCard) return nextTurn({ ...state, pendingEffect: null });
       // Replace worst card in hand (or first)
       const newDrawPile = state.drawPile.filter((_, i) => i !== targetCardIndex);
       const removedCard = sourcePlayer.hand[0];
@@ -434,7 +437,7 @@ export function resolveEffect(state: GameState, targetPlayerId?: string, targetC
     }
 
     case 'lucky_seven': {
-      if (!targetPlayerId) return state;
+      if (!targetPlayerId) return nextTurn({ ...state, pendingEffect: null });
       const target = state.players.find(p => p.id === targetPlayerId)!;
       const sourceHand = [...sourcePlayer.hand];
       const targetHand = [...target.hand];
@@ -461,7 +464,20 @@ export function resolveEffect(state: GameState, targetPlayerId?: string, targetC
 }
 
 export function nextTurn(state: GameState): GameState {
-  const nextIndex = (state.currentPlayerIndex + 1) % state.players.length;
+  const n = state.players.length;
+  let nextIndex = (state.currentPlayerIndex + 1) % n;
+
+  // Skip and auto-unblock any blocked player in the rotation
+  // (guarded by loop limit to prevent infinite loop if all are blocked)
+  let loopGuard = 0;
+  while (state.players[nextIndex]?.isBlocked && loopGuard < n) {
+    const unblocked = state.players.map((p, i) =>
+      i === nextIndex ? { ...p, isBlocked: false } : p
+    );
+    state = { ...state, players: unblocked };
+    nextIndex = (nextIndex + 1) % n;
+    loopGuard++;
+  }
 
   return {
     ...state,
@@ -544,8 +560,9 @@ export function botTurn(state: GameState): GameState {
   let newState = drawCard(state);
 
   // Step 2: Decide what to discard
-  if (!newState.drawnCard) {
-    // Blocked - just end turn
+  // If drawnCard is null after drawCard, the player was blocked — advance turn.
+  // Note: drawCard sets hasDrawn=true when blocked, so we check hasDrawn+no drawnCard.
+  if (newState.hasDrawn && !newState.drawnCard) {
     return nextTurn(newState);
   }
 

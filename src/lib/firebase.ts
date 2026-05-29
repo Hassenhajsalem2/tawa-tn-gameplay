@@ -195,8 +195,27 @@ export async function fbUpdateStatus(roomId: string, status: FBRoom['status']): 
 // ============================================================
 // GAME STATE SYNC
 // ============================================================
+
+/**
+ * Recursively replace every `undefined` value with `null`.
+ * Firebase Realtime Database rejects writes that contain `undefined`.
+ */
+function sanitizeForFirebase(value: any): any {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  if (Array.isArray(value)) return value.map(sanitizeForFirebase);
+  if (typeof value === 'object') {
+    const out: Record<string, any> = {};
+    for (const key of Object.keys(value)) {
+      out[key] = sanitizeForFirebase(value[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
 export async function fbSetGameState(roomId: string, gameState: any): Promise<void> {
-  await set(ref(db, `rooms/${roomId}/gameState`), gameState);
+  await set(ref(db, `rooms/${roomId}/gameState`), sanitizeForFirebase(gameState));
 }
 
 export function fbSubscribeToGameState(

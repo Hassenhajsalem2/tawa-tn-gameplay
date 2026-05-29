@@ -37,9 +37,6 @@ interface GameStore extends GameState {
   peekedCard: { playerId: string; cardIndex: number; card: import('@/types/game').GameCard } | null;
   setPeekedCard: (card: { playerId: string; cardIndex: number; card: import('@/types/game').GameCard } | null) => void;
   discardMessage: string | null;
-
-  _isRemoteUpdate: boolean;
-  _lastAppliedTimestamp: number;
 }
 
 function applyState(state: GameState): Partial<GameStore> {
@@ -80,18 +77,14 @@ function getFullState(store: GameStore): GameState {
   };
 }
 
-const initialState = createInitialState('Player', 2);
-
 export const useGameStore = create<GameStore>((set, get) => ({
-  ...initialState,
+  ...createInitialState('Player', 2),
   selectedTargetPlayer: null,
   selectedTargetCard: null,
   showRules: false,
   effectStep: null,
   peekedCard: null,
   discardMessage: null,
-  _isRemoteUpdate: false,
-  _lastAppliedTimestamp: 0,
 
   setSelectedTarget: (playerId, cardIndex) => set({ selectedTargetPlayer: playerId, selectedTargetCard: cardIndex }),
   setShowRules: (show) => set({ showRules: show }),
@@ -99,56 +92,45 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setPeekedCard: (card) => set({ peekedCard: card }),
 
   initGame: (playerName, botCount, roomId) => {
-    const state = createInitialState(playerName, botCount, roomId);
-    set(applyState(state));
+    set(applyState(createInitialState(playerName, botCount, roomId)));
   },
 
   startGame: () => {
-    const state = getFullState(get());
-    const newState = startNewRound(state);
-    set(applyState(newState));
+    set(applyState(startNewRound(getFullState(get()))));
   },
 
   selectVisibility: (mode) => {
-    const state = getFullState(get());
-    const newState = setVisibilityMode(state, mode);
-    set(applyState(newState));
+    set(applyState(setVisibilityMode(getFullState(get()), mode)));
   },
 
   performDraw: () => {
-    const state = getFullState(get());
-    const newState = drawCard(state);
-    set(applyState(newState));
+    const afterDraw = drawCard(getFullState(get()));
+    // If hasDrawn=true but drawnCard=null, player was blocked — advance turn immediately
+    if (afterDraw.hasDrawn && !afterDraw.drawnCard) {
+      set(applyState(nextTurn(afterDraw)));
+    } else {
+      set(applyState(afterDraw));
+    }
   },
 
   performDiscard: (cardIndex) => {
-    const state = getFullState(get());
-    const afterDiscard = discardCard(state, cardIndex);
-
+    const afterDiscard = discardCard(getFullState(get()), cardIndex);
     if (!afterDiscard.pendingEffect) {
-      const discardMsg = afterDiscard.message;
-      set({ ...applyState(afterDiscard), discardMessage: discardMsg });
-      setTimeout(() => {
-        const current = getFullState(get());
-        if (current.hasDiscarded && !current.pendingEffect && current.phase === 'playing') {
-          const advanced = nextTurn(current);
-          set({ ...applyState(advanced), discardMessage: null });
-        }
-      }, 600);
+      // No special effect — advance turn immediately
+      set({ ...applyState(nextTurn(afterDiscard)), discardMessage: null });
     } else {
+      // Special card played — show EffectModal, wait for resolution
       set(applyState(afterDiscard));
     }
   },
 
   performResolveEffect: (targetPlayerId, targetCardIndex, accept) => {
-    const state = getFullState(get());
-    const newState = resolveEffect(state, targetPlayerId, targetCardIndex, accept);
+    const newState = resolveEffect(getFullState(get()), targetPlayerId, targetCardIndex, accept);
     set({ ...applyState(newState), selectedTargetPlayer: null, selectedTargetCard: null, effectStep: null, peekedCard: null });
   },
 
   cancelEffect: () => {
-    const state = getFullState(get());
-    const newState = nextTurn({ ...state, pendingEffect: null });
+    const newState = nextTurn({ ...getFullState(get()), pendingEffect: null });
     set({ ...applyState(newState), selectedTargetPlayer: null, selectedTargetCard: null, effectStep: null, peekedCard: null });
   },
 
@@ -159,72 +141,58 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   performTawa: (callerId: string) => {
-    const state = getFullState(get());
-    const newState = callTawa(state, callerId);
-    set(applyState(newState));
+    set(applyState(callTawa(getFullState(get()), callerId)));
   },
 
   proceedToNextRound: () => {
-    const state = getFullState(get());
-    const roundEndState = endRound(state);
+    const roundEndState = endRound(getFullState(get()));
     if (roundEndState.phase === 'game_end') {
       set(applyState(roundEndState));
     } else {
-      const newRoundState = startNewRound(roundEndState);
-      set(applyState(newRoundState));
+      set(applyState(startNewRound(roundEndState)));
     }
   },
 
   processBotTurn: () => {
     const state = getFullState(get());
-    const currentPlayer = state.players[state.currentPlayerIndex];
-    if (!currentPlayer.isBot) return;
-    const newState = botTurn(state);
-    set(applyState(newState));
+    if (!state.players[state.currentPlayerIndex].isBot) return;
+    set(applyState(botTurn(state)));
   },
 }));
 
 // ─────────────────────────────────────────────────────────────
-// Firebase sync with echo protection
+// FIREBASE SYNC — simple and robust
 //
-// 1. Every write is tagged with _writtenBy + _timestamp
-// 2. Receiver skips own echoes via _writtenBy
-// 3. Receiver skips stale writes via _timestamp
-// 4. Pending debounce is cancelled when remote state arrives
+// KEY DESIGN DECISIONS:
+//
+// 1. Synchronous module-level `isApplyingRemote` flag.
+//    Set before setState, cleared after. Since JS is single-threaded,
+//    the subscriber always sees the correct value — no race conditions.
+//
+// 2. Never cancel pending syncs. The _writtenBy echo check on the
+//    receiver is sufficient to prevent loops. Cancelling was killing
+//    legitimate local actions (like effect resolution).
+//
+// 3. Read CURRENT state when debounce fires, not the stale closure
+//    state from when the subscriber first ran.
 // ─────────────────────────────────────────────────────────────
+
+let isApplyingRemote = false;
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 
-// Called by applyRemoteState to cancel any pending stale push
-export function cancelPendingSync() {
-  if (syncTimeout) {
-    clearTimeout(syncTimeout);
-    syncTimeout = null;
-  }
+/** Wraps setState with synchronous echo-protection flag */
+export function applyRemoteToStore(partial: Record<string, any>) {
+  isApplyingRemote = true;
+  useGameStore.setState(partial);
+  isApplyingRemote = false;
 }
 
-// Phase progression: prevent backwards transitions from stale Firebase writes
-const PHASE_ORDER: Record<string, number> = {
-  lobby: 0,
-  draw_challenge: 1,
-  choice_circle: 2,
-  playing: 3,
-  tawa_called: 4,
-  round_end: 5,
-  game_end: 6,
-};
+useGameStore.subscribe((_s, prevState) => {
+  // Always read CURRENT state, not the stale closure arg
+  const state = useGameStore.getState();
 
-export function getPhaseOrder(phase: string): number {
-  return PHASE_ORDER[phase] ?? 0;
-}
-
-useGameStore.subscribe((state, prevState) => {
   if (state.phase === 'lobby') return;
-  if (state._isRemoteUpdate) {
-    // Cancel any pending stale push when remote state arrives
-    if (syncTimeout) clearTimeout(syncTimeout);
-    syncTimeout = null;
-    return;
-  }
+  if (isApplyingRemote) return;
 
   const significantChange =
     state.phase !== prevState.phase ||
@@ -241,44 +209,47 @@ useGameStore.subscribe((state, prevState) => {
   if (syncTimeout) clearTimeout(syncTimeout);
 
   syncTimeout = setTimeout(() => {
+    // Read FRESH state right now — not the stale closure from 150ms ago
+    const fresh = useGameStore.getState();
+    if (fresh.phase === 'lobby') return;
+
     import('./roomStore').then(({ useRoomStore }) => {
       const rs = useRoomStore.getState();
       if (!rs.room || !rs.userId) return;
 
-      const gameState = {
-        roomId: state.roomId,
-        phase: state.phase,
-        players: state.players,
-        currentPlayerIndex: state.currentPlayerIndex,
-        drawPile: state.drawPile,
-        discardPile: state.discardPile,
-        currentChallenge: state.currentChallenge,
-        challengeDeck: state.challengeDeck,
-        funnyCards: state.funnyCards,
-        visibilityMode: state.visibilityMode,
-        round: state.round,
-        maxRounds: state.maxRounds,
-        pendingEffect: state.pendingEffect,
-        drawnCard: state.drawnCard,
-        hasDrawn: state.hasDrawn,
-        hasDiscarded: state.hasDiscarded,
-        tawaCallerId: state.tawaCallerId,
-        winner: state.winner,
-        roundWinner: state.roundWinner,
-        funnyCardResult: state.funnyCardResult,
-        message: state.message,
-        turnTimer: state.turnTimer,
-        showDeckBrowser: state.showDeckBrowser,
-        passItPending: state.passItPending,
-        passItSelections: state.passItSelections,
-        jokerReactionWindow: state.jokerReactionWindow,
-        jokerReactingPlayerId: state.jokerReactingPlayerId,
-        votingInProgress: state.votingInProgress,
-        votes: state.votes,
+      rs.pushGameState({
+        roomId: fresh.roomId,
+        phase: fresh.phase,
+        players: fresh.players,
+        currentPlayerIndex: fresh.currentPlayerIndex,
+        drawPile: fresh.drawPile,
+        discardPile: fresh.discardPile,
+        currentChallenge: fresh.currentChallenge,
+        challengeDeck: fresh.challengeDeck,
+        funnyCards: fresh.funnyCards,
+        visibilityMode: fresh.visibilityMode,
+        round: fresh.round,
+        maxRounds: fresh.maxRounds,
+        pendingEffect: fresh.pendingEffect,
+        drawnCard: fresh.drawnCard,
+        hasDrawn: fresh.hasDrawn,
+        hasDiscarded: fresh.hasDiscarded,
+        tawaCallerId: fresh.tawaCallerId,
+        winner: fresh.winner,
+        roundWinner: fresh.roundWinner,
+        funnyCardResult: fresh.funnyCardResult,
+        message: fresh.message,
+        turnTimer: fresh.turnTimer,
+        showDeckBrowser: fresh.showDeckBrowser,
+        passItPending: fresh.passItPending,
+        passItSelections: fresh.passItSelections,
+        jokerReactionWindow: fresh.jokerReactionWindow,
+        jokerReactingPlayerId: fresh.jokerReactingPlayerId,
+        votingInProgress: fresh.votingInProgress,
+        votes: fresh.votes,
         _writtenBy: rs.userId,
         _timestamp: Date.now(),
-      };
-      rs.pushGameState(gameState);
+      });
     });
   }, 150);
 });

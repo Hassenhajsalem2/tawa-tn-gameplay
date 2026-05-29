@@ -14,7 +14,6 @@ import {
 } from '@/lib/firebase';
 
 const BOT_NAMES = ['Hassen 🇹🇳', 'Oumaima 🌸', 'Khaled 🎯', 'Tasnime ⭐', 'Bader 🌙'];
-
 type RoomStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 interface RoomStore {
@@ -55,84 +54,47 @@ function fixFirebaseArrays(state: any): any {
   return fixed;
 }
 
-/**
- * Apply a remote game state to the local store.
- * Three-layer protection against bad writes:
- *   1. Skip own echoes (_writtenBy === myUserId)
- *   2. Cancel pending stale pushes
- *   3. Skip backwards phase transitions (stale writes from slow networks)
- */
 function applyRemoteState(remoteState: any, myUserId: string, roomStoreSet: (p: any) => void) {
-  // Layer 1: Skip own echoes
+  // Skip own echoes — _writtenBy tag prevents loop
   if (remoteState._writtenBy && remoteState._writtenBy === myUserId) {
     return;
   }
 
-  import('./gameStore').then(({ useGameStore, getPhaseOrder, cancelPendingSync }) => {
-    const local = useGameStore.getState();
+  const fixed = fixFirebaseArrays(remoteState);
 
-    // Layer 2: Cancel any pending stale push from the subscriber debounce
-    cancelPendingSync();
-
-    // Layer 3: Skip backwards phase transitions.
-    // A late-arriving "draw_challenge" should NOT overwrite "choice_circle" or "playing".
-    // Exception: new rounds do go back to draw_challenge, detected by round number increasing.
-    const remotePhaseOrder = getPhaseOrder(remoteState.phase ?? 'lobby');
-    const localPhaseOrder = getPhaseOrder(local.phase);
-    const remoteRound = remoteState.round ?? 0;
-    const localRound = local.round ?? 0;
-
-    if (remotePhaseOrder < localPhaseOrder && remoteRound <= localRound) {
-      console.log(`⏭️ Skipping stale phase: ${remoteState.phase} (order ${remotePhaseOrder}) vs local ${local.phase} (order ${localPhaseOrder}), round ${remoteRound} vs ${localRound}`);
-      return;
-    }
-
-    // Also skip if same phase but older timestamp (prevents repeated applies)
-    if (remoteState._timestamp && local._lastAppliedTimestamp &&
-      remoteState._timestamp <= local._lastAppliedTimestamp &&
-      remotePhaseOrder <= localPhaseOrder) {
-      console.log(`⏭️ Skipping old timestamp: ${remoteState._timestamp} <= ${local._lastAppliedTimestamp}`);
-      return;
-    }
-
-    const fixed = fixFirebaseArrays(remoteState);
-
-    useGameStore.setState({
-      roomId: fixed.roomId,
-      phase: fixed.phase,
-      players: fixed.players,
+  import('./gameStore').then(({ applyRemoteToStore }) => {
+    applyRemoteToStore({
+      roomId: fixed.roomId ?? null,
+      phase: fixed.phase ?? 'lobby',
+      players: fixed.players ?? [],
       currentPlayerIndex: fixed.currentPlayerIndex ?? 0,
       drawPile: fixed.drawPile ?? [],
       discardPile: fixed.discardPile ?? [],
-      currentChallenge: fixed.currentChallenge,
+      currentChallenge: fixed.currentChallenge ?? null,
       challengeDeck: fixed.challengeDeck ?? [],
       funnyCards: fixed.funnyCards ?? [],
       visibilityMode: fixed.visibilityMode ?? 'keep_hidden',
       round: fixed.round ?? 0,
       maxRounds: fixed.maxRounds ?? 5,
-      pendingEffect: fixed.pendingEffect,
-      drawnCard: fixed.drawnCard,
+      pendingEffect: fixed.pendingEffect ?? null,
+      drawnCard: fixed.drawnCard ?? null,
       hasDrawn: fixed.hasDrawn ?? false,
       hasDiscarded: fixed.hasDiscarded ?? false,
-      tawaCallerId: fixed.tawaCallerId,
-      winner: fixed.winner,
-      roundWinner: fixed.roundWinner,
-      funnyCardResult: fixed.funnyCardResult,
+      tawaCallerId: fixed.tawaCallerId ?? null,
+      winner: fixed.winner ?? null,
+      roundWinner: fixed.roundWinner ?? null,
+      funnyCardResult: fixed.funnyCardResult ?? null,
       message: fixed.message ?? '',
       turnTimer: fixed.turnTimer ?? 30,
-      animatingCard: fixed.animatingCard,
+      animatingCard: fixed.animatingCard ?? null,
       showDeckBrowser: fixed.showDeckBrowser ?? false,
       passItPending: fixed.passItPending ?? false,
       passItSelections: fixed.passItSelections ?? {},
       jokerReactionWindow: fixed.jokerReactionWindow ?? false,
-      jokerReactingPlayerId: fixed.jokerReactingPlayerId,
+      jokerReactingPlayerId: fixed.jokerReactingPlayerId ?? null,
       votingInProgress: fixed.votingInProgress ?? false,
       votes: fixed.votes ?? {},
-      _isRemoteUpdate: true,
-      _lastAppliedTimestamp: remoteState._timestamp ?? Date.now(),
     });
-
-    setTimeout(() => useGameStore.setState({ _isRemoteUpdate: false }), 0);
 
     if (fixed.phase && fixed.phase !== 'lobby') {
       roomStoreSet({ isInLobby: false });
@@ -233,16 +195,14 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     await fbUpdateStatus(room.id, 'playing');
   },
 
-  // Always stamp _writtenBy + _timestamp so the receiver can filter
   pushGameState: async (gameState: any) => {
     const { room, userId } = get();
     if (!room) return;
-    const stamped = {
+    await fbSetGameState(room.id, {
       ...gameState,
       _writtenBy: userId || 'unknown',
       _timestamp: Date.now(),
-    };
-    await fbSetGameState(room.id, stamped);
+    });
   },
 
   getPlayers: () => {

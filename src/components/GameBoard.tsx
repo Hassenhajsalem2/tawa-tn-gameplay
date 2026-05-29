@@ -11,7 +11,6 @@ import { VisibilityVote } from './VisibilityVote';
 import { Scoreboard } from './Scoreboard';
 import { FunnyCardModal } from './FunnyCardModal';
 import { RulesModal } from './RulesModal';
-import { nextTurn } from '@/engine/gameEngine';
 
 export const GameBoard: React.FC = () => {
   const store = useGameStore();
@@ -55,42 +54,6 @@ export const GameBoard: React.FC = () => {
     }
   }, [store.phase, store.round, isHost]);
 
-  // Auto-trigger draw/skip for blocked human player
-  useEffect(() => {
-    if (
-      store.phase === 'playing' &&
-      isHumanTurn &&
-      humanPlayer?.isBlocked &&
-      !store.hasDrawn &&
-      !store.pendingEffect
-    ) {
-      const timer = setTimeout(() => {
-        store.performDraw();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [store.phase, isHumanTurn, humanPlayer?.isBlocked, store.hasDrawn, store.pendingEffect]);
-
-  // Handle blocked human player — both host and joiner can be blocked
-  useEffect(() => {
-    if (
-      store.phase === 'playing' &&
-      isHumanTurn &&
-      store.hasDrawn &&
-      !store.drawnCard &&
-      !store.hasDiscarded &&
-      !store.pendingEffect
-    ) {
-      const timer = setTimeout(() => {
-        const s = useGameStore.getState();
-        const gs = extractGameState(s);
-        const advanced = nextTurn(gs);
-        useGameStore.setState(applyPartial(advanced));
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [store.phase, isHumanTurn, store.hasDrawn, store.drawnCard, store.hasDiscarded, store.pendingEffect]);
-
   // Bot turn processing — Host only (bots run on host's device)
   useEffect(() => {
     if (isHost && store.phase === 'playing' && currentPlayer?.isBot && !store.pendingEffect) {
@@ -103,6 +66,22 @@ export const GameBoard: React.FC = () => {
       };
     }
   }, [store.phase, store.currentPlayerIndex, currentPlayer?.isBot, store.pendingEffect, isHost]);
+
+  // Auto-advance blocked human player's turn
+  useEffect(() => {
+    if (
+      store.phase === 'playing' &&
+      isHumanTurn &&
+      humanPlayer?.isBlocked &&
+      !store.hasDrawn &&
+      !store.pendingEffect
+    ) {
+      const timer = setTimeout(() => {
+        useGameStore.getState().performDraw();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [store.phase, isHumanTurn, humanPlayer?.isBlocked, store.hasDrawn, store.pendingEffect]);
 
   // Reset selected card when turn changes
   useEffect(() => {
@@ -450,40 +429,3 @@ export const GameBoard: React.FC = () => {
   );
 };
 
-function extractGameState(s: ReturnType<typeof useGameStore.getState>): import('@/types/game').GameState {
-  return {
-    roomId: s.roomId, phase: s.phase, players: s.players,
-    currentPlayerIndex: s.currentPlayerIndex, drawPile: s.drawPile,
-    discardPile: s.discardPile, currentChallenge: s.currentChallenge,
-    challengeDeck: s.challengeDeck, funnyCards: s.funnyCards,
-    visibilityMode: s.visibilityMode, round: s.round, maxRounds: s.maxRounds,
-    pendingEffect: s.pendingEffect, drawnCard: s.drawnCard,
-    hasDrawn: s.hasDrawn, hasDiscarded: s.hasDiscarded,
-    tawaCallerId: s.tawaCallerId, winner: s.winner,
-    roundWinner: s.roundWinner, funnyCardResult: s.funnyCardResult,
-    message: s.message, turnTimer: s.turnTimer, animatingCard: s.animatingCard,
-    showDeckBrowser: s.showDeckBrowser, passItPending: s.passItPending,
-    passItSelections: s.passItSelections, jokerReactionWindow: s.jokerReactionWindow,
-    jokerReactingPlayerId: s.jokerReactingPlayerId,
-    votingInProgress: s.votingInProgress, votes: s.votes,
-  };
-}
-
-function applyPartial(gs: import('@/types/game').GameState): Partial<ReturnType<typeof useGameStore.getState>> {
-  return {
-    roomId: gs.roomId, phase: gs.phase, players: gs.players,
-    currentPlayerIndex: gs.currentPlayerIndex, drawPile: gs.drawPile,
-    discardPile: gs.discardPile, currentChallenge: gs.currentChallenge,
-    challengeDeck: gs.challengeDeck, funnyCards: gs.funnyCards,
-    visibilityMode: gs.visibilityMode, round: gs.round, maxRounds: gs.maxRounds,
-    pendingEffect: gs.pendingEffect, drawnCard: gs.drawnCard,
-    hasDrawn: gs.hasDrawn, hasDiscarded: gs.hasDiscarded,
-    tawaCallerId: gs.tawaCallerId, winner: gs.winner,
-    roundWinner: gs.roundWinner, funnyCardResult: gs.funnyCardResult,
-    message: gs.message, turnTimer: gs.turnTimer, animatingCard: gs.animatingCard,
-    showDeckBrowser: gs.showDeckBrowser, passItPending: gs.passItPending,
-    passItSelections: gs.passItSelections, jokerReactionWindow: gs.jokerReactionWindow,
-    jokerReactingPlayerId: gs.jokerReactingPlayerId,
-    votingInProgress: gs.votingInProgress, votes: gs.votes,
-  };
-}
