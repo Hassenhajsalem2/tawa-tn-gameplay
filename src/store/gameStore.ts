@@ -14,33 +14,19 @@ import {
 } from '@/engine/gameEngine';
 
 interface GameStore extends GameState {
-  // Lobby actions
   initGame: (playerName: string, botCount: number, roomId?: string) => void;
   startGame: () => void;
-
-  // Game phase actions
   selectVisibility: (mode: VisibilityMode) => void;
-
-  // Turn actions
   performDraw: () => void;
   performDiscard: (cardIndex: number) => void;
-
-  // Effect actions
   performResolveEffect: (targetPlayerId?: string, targetCardIndex?: number, accept?: boolean) => void;
   cancelEffect: () => void;
   setShowDeckBrowser: (show: boolean) => void;
   setPassItSelection: (playerId: string, cardIndex: number) => void;
-
-  // TAWA
-  performTawa: () => void;
-
-  // Round management
+  performTawa: (callerId: string) => void;
   proceedToNextRound: () => void;
-
-  // Bot
   processBotTurn: () => void;
 
-  // UI state
   selectedTargetPlayer: string | null;
   selectedTargetCard: number | null;
   setSelectedTarget: (playerId: string | null, cardIndex: number | null) => void;
@@ -50,78 +36,47 @@ interface GameStore extends GameState {
   setEffectStep: (step: 'select_player' | 'select_card' | 'confirm' | null) => void;
   peekedCard: { playerId: string; cardIndex: number; card: import('@/types/game').GameCard } | null;
   setPeekedCard: (card: { playerId: string; cardIndex: number; card: import('@/types/game').GameCard } | null) => void;
-
-  // Discard animation state
   discardMessage: string | null;
+
+  _isRemoteUpdate: boolean;
+  _lastAppliedTimestamp: number;
 }
 
 function applyState(state: GameState): Partial<GameStore> {
   return {
-    roomId: state.roomId,
-    phase: state.phase,
-    players: state.players,
-    currentPlayerIndex: state.currentPlayerIndex,
-    drawPile: state.drawPile,
-    discardPile: state.discardPile,
-    currentChallenge: state.currentChallenge,
-    challengeDeck: state.challengeDeck,
-    funnyCards: state.funnyCards,
-    visibilityMode: state.visibilityMode,
-    round: state.round,
-    maxRounds: state.maxRounds,
-    pendingEffect: state.pendingEffect,
-    drawnCard: state.drawnCard,
-    hasDrawn: state.hasDrawn,
-    hasDiscarded: state.hasDiscarded,
-    tawaCallerId: state.tawaCallerId,
-    winner: state.winner,
-    roundWinner: state.roundWinner,
-    funnyCardResult: state.funnyCardResult,
-    message: state.message,
-    turnTimer: state.turnTimer,
-    animatingCard: state.animatingCard,
-    showDeckBrowser: state.showDeckBrowser,
-    passItPending: state.passItPending,
-    passItSelections: state.passItSelections,
-    jokerReactionWindow: state.jokerReactionWindow,
+    roomId: state.roomId, phase: state.phase, players: state.players,
+    currentPlayerIndex: state.currentPlayerIndex, drawPile: state.drawPile,
+    discardPile: state.discardPile, currentChallenge: state.currentChallenge,
+    challengeDeck: state.challengeDeck, funnyCards: state.funnyCards,
+    visibilityMode: state.visibilityMode, round: state.round, maxRounds: state.maxRounds,
+    pendingEffect: state.pendingEffect, drawnCard: state.drawnCard,
+    hasDrawn: state.hasDrawn, hasDiscarded: state.hasDiscarded,
+    tawaCallerId: state.tawaCallerId, winner: state.winner,
+    roundWinner: state.roundWinner, funnyCardResult: state.funnyCardResult,
+    message: state.message, turnTimer: state.turnTimer, animatingCard: state.animatingCard,
+    showDeckBrowser: state.showDeckBrowser, passItPending: state.passItPending,
+    passItSelections: state.passItSelections, jokerReactionWindow: state.jokerReactionWindow,
     jokerReactingPlayerId: state.jokerReactingPlayerId,
-    votingInProgress: state.votingInProgress,
-    votes: state.votes,
+    votingInProgress: state.votingInProgress, votes: state.votes,
   };
 }
 
 function getFullState(store: GameStore): GameState {
   return {
-    roomId: store.roomId,
-    phase: store.phase,
-    players: store.players,
-    currentPlayerIndex: store.currentPlayerIndex,
-    drawPile: store.drawPile,
-    discardPile: store.discardPile,
-    currentChallenge: store.currentChallenge,
-    challengeDeck: store.challengeDeck,
-    funnyCards: store.funnyCards,
-    visibilityMode: store.visibilityMode,
-    round: store.round,
-    maxRounds: store.maxRounds,
-    pendingEffect: store.pendingEffect,
-    drawnCard: store.drawnCard,
-    hasDrawn: store.hasDrawn,
-    hasDiscarded: store.hasDiscarded,
-    tawaCallerId: store.tawaCallerId,
-    winner: store.winner,
-    roundWinner: store.roundWinner,
-    funnyCardResult: store.funnyCardResult,
-    message: store.message,
-    turnTimer: store.turnTimer,
-    animatingCard: store.animatingCard,
-    showDeckBrowser: store.showDeckBrowser,
-    passItPending: store.passItPending,
-    passItSelections: store.passItSelections,
-    jokerReactionWindow: store.jokerReactionWindow,
+    roomId: store.roomId, phase: store.phase, players: store.players,
+    currentPlayerIndex: store.currentPlayerIndex, drawPile: store.drawPile,
+    discardPile: store.discardPile, currentChallenge: store.currentChallenge,
+    challengeDeck: store.challengeDeck, funnyCards: store.funnyCards,
+    visibilityMode: store.visibilityMode, round: store.round, maxRounds: store.maxRounds,
+    pendingEffect: store.pendingEffect, drawnCard: store.drawnCard,
+    hasDrawn: store.hasDrawn, hasDiscarded: store.hasDiscarded,
+    tawaCallerId: store.tawaCallerId, winner: store.winner,
+    roundWinner: store.roundWinner, funnyCardResult: store.funnyCardResult,
+    message: store.message, turnTimer: store.turnTimer, animatingCard: store.animatingCard,
+    showDeckBrowser: store.showDeckBrowser, passItPending: store.passItPending,
+    passItSelections: store.passItSelections, jokerReactionWindow: store.jokerReactionWindow,
     jokerReactingPlayerId: store.jokerReactingPlayerId,
-    votingInProgress: store.votingInProgress,
-    votes: store.votes,
+    votingInProgress: store.votingInProgress, votes: store.votes,
   };
 }
 
@@ -129,14 +84,14 @@ const initialState = createInitialState('Player', 2);
 
 export const useGameStore = create<GameStore>((set, get) => ({
   ...initialState,
-
-  // UI state
   selectedTargetPlayer: null,
   selectedTargetCard: null,
   showRules: false,
   effectStep: null,
   peekedCard: null,
   discardMessage: null,
+  _isRemoteUpdate: false,
+  _lastAppliedTimestamp: 0,
 
   setSelectedTarget: (playerId, cardIndex) => set({ selectedTargetPlayer: playerId, selectedTargetCard: cardIndex }),
   setShowRules: (show) => set({ showRules: show }),
@@ -170,24 +125,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = getFullState(get());
     const afterDiscard = discardCard(state, cardIndex);
 
-    // If a normal card was discarded (no special effect), show a brief
-    // message then auto-advance to next turn after a short delay
     if (!afterDiscard.pendingEffect) {
-      // Show the discard message momentarily, then advance turn
       const discardMsg = afterDiscard.message;
       set({ ...applyState(afterDiscard), discardMessage: discardMsg });
-
-      // Auto-advance after a brief pause so the player can see what happened
       setTimeout(() => {
         const current = getFullState(get());
-        // Only advance if we're still in the same "discarded" state
         if (current.hasDiscarded && !current.pendingEffect && current.phase === 'playing') {
           const advanced = nextTurn(current);
           set({ ...applyState(advanced), discardMessage: null });
         }
       }, 600);
     } else {
-      // Special card played — effect modal will handle the flow
       set(applyState(afterDiscard));
     }
   },
@@ -207,14 +155,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setShowDeckBrowser: (show) => set({ showDeckBrowser: show }),
 
   setPassItSelection: (playerId, cardIndex) => {
-    set(s => ({
-      passItSelections: { ...s.passItSelections, [playerId]: cardIndex },
-    }));
+    set(s => ({ passItSelections: { ...s.passItSelections, [playerId]: cardIndex } }));
   },
 
-  performTawa: () => {
+  performTawa: (callerId: string) => {
     const state = getFullState(get());
-    const newState = callTawa(state, 'player-human');
+    const newState = callTawa(state, callerId);
     set(applyState(newState));
   },
 
@@ -238,70 +184,101 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 }));
 
-// Auto-sync game store to Firebase if current user is the host
-// We use a debounce to avoid excessive writes and only sync during active gameplay
+// ─────────────────────────────────────────────────────────────
+// Firebase sync with echo protection
+//
+// 1. Every write is tagged with _writtenBy + _timestamp
+// 2. Receiver skips own echoes via _writtenBy
+// 3. Receiver skips stale writes via _timestamp
+// 4. Pending debounce is cancelled when remote state arrives
+// ─────────────────────────────────────────────────────────────
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 
-useGameStore.subscribe((state, prevState) => {
-  // Only sync if:
-  // 1. The phase changed, OR significant game state changed
-  // 2. We're not in lobby (lobby state is managed separately)
-  // Skip syncing if nothing important changed
-  if (state.phase === 'lobby') return;
+// Called by applyRemoteState to cancel any pending stale push
+export function cancelPendingSync() {
+  if (syncTimeout) {
+    clearTimeout(syncTimeout);
+    syncTimeout = null;
+  }
+}
 
-  // Skip if the phase didn't change and no game-critical fields changed
-  const phaseChanged = state.phase !== prevState.phase;
-  const turnChanged = state.currentPlayerIndex !== prevState.currentPlayerIndex;
-  const significantChange = phaseChanged || turnChanged ||
+// Phase progression: prevent backwards transitions from stale Firebase writes
+const PHASE_ORDER: Record<string, number> = {
+  lobby: 0,
+  draw_challenge: 1,
+  choice_circle: 2,
+  playing: 3,
+  tawa_called: 4,
+  round_end: 5,
+  game_end: 6,
+};
+
+export function getPhaseOrder(phase: string): number {
+  return PHASE_ORDER[phase] ?? 0;
+}
+
+useGameStore.subscribe((state, prevState) => {
+  if (state.phase === 'lobby') return;
+  if (state._isRemoteUpdate) {
+    // Cancel any pending stale push when remote state arrives
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = null;
+    return;
+  }
+
+  const significantChange =
+    state.phase !== prevState.phase ||
+    state.currentPlayerIndex !== prevState.currentPlayerIndex ||
     state.hasDrawn !== prevState.hasDrawn ||
     state.hasDiscarded !== prevState.hasDiscarded ||
     state.pendingEffect !== prevState.pendingEffect ||
     state.tawaCallerId !== prevState.tawaCallerId ||
-    state.round !== prevState.round;
+    state.round !== prevState.round ||
+    state.winner !== prevState.winner;
 
   if (!significantChange) return;
 
-  // Debounce: wait a short time before pushing to avoid rapid-fire writes
   if (syncTimeout) clearTimeout(syncTimeout);
 
   syncTimeout = setTimeout(() => {
     import('./roomStore').then(({ useRoomStore }) => {
-      const roomState = useRoomStore.getState();
-      if (roomState.isHost && roomState.room) {
-        // Extract serializable game state
-        const gameState = {
-          roomId: state.roomId,
-          phase: state.phase,
-          players: state.players,
-          currentPlayerIndex: state.currentPlayerIndex,
-          drawPile: state.drawPile,
-          discardPile: state.discardPile,
-          currentChallenge: state.currentChallenge,
-          challengeDeck: state.challengeDeck,
-          funnyCards: state.funnyCards,
-          visibilityMode: state.visibilityMode,
-          round: state.round,
-          maxRounds: state.maxRounds,
-          pendingEffect: state.pendingEffect,
-          drawnCard: state.drawnCard,
-          hasDrawn: state.hasDrawn,
-          hasDiscarded: state.hasDiscarded,
-          tawaCallerId: state.tawaCallerId,
-          winner: state.winner,
-          roundWinner: state.roundWinner,
-          funnyCardResult: state.funnyCardResult,
-          message: state.message,
-          turnTimer: state.turnTimer,
-          showDeckBrowser: state.showDeckBrowser,
-          passItPending: state.passItPending,
-          passItSelections: state.passItSelections,
-          jokerReactionWindow: state.jokerReactionWindow,
-          jokerReactingPlayerId: state.jokerReactingPlayerId,
-          votingInProgress: state.votingInProgress,
-          votes: state.votes,
-        };
-        roomState.pushGameState(gameState);
-      }
+      const rs = useRoomStore.getState();
+      if (!rs.room || !rs.userId) return;
+
+      const gameState = {
+        roomId: state.roomId,
+        phase: state.phase,
+        players: state.players,
+        currentPlayerIndex: state.currentPlayerIndex,
+        drawPile: state.drawPile,
+        discardPile: state.discardPile,
+        currentChallenge: state.currentChallenge,
+        challengeDeck: state.challengeDeck,
+        funnyCards: state.funnyCards,
+        visibilityMode: state.visibilityMode,
+        round: state.round,
+        maxRounds: state.maxRounds,
+        pendingEffect: state.pendingEffect,
+        drawnCard: state.drawnCard,
+        hasDrawn: state.hasDrawn,
+        hasDiscarded: state.hasDiscarded,
+        tawaCallerId: state.tawaCallerId,
+        winner: state.winner,
+        roundWinner: state.roundWinner,
+        funnyCardResult: state.funnyCardResult,
+        message: state.message,
+        turnTimer: state.turnTimer,
+        showDeckBrowser: state.showDeckBrowser,
+        passItPending: state.passItPending,
+        passItSelections: state.passItSelections,
+        jokerReactionWindow: state.jokerReactionWindow,
+        jokerReactingPlayerId: state.jokerReactingPlayerId,
+        votingInProgress: state.votingInProgress,
+        votes: state.votes,
+        _writtenBy: rs.userId,
+        _timestamp: Date.now(),
+      };
+      rs.pushGameState(gameState);
     });
   }, 150);
 });

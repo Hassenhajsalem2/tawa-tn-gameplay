@@ -54,11 +54,8 @@ export const Lobby: React.FC = () => {
   };
 
   // Handle start game (host only)
-  // Host generates the round, merges all room players into the game state,
-  // pushes the state to Firebase, then sets status
   const handleStart = async () => {
-    // Before starting, merge all human joiners from the Firebase room
-    // into the game state's players array
+    // ──── STEP 1: Merge all human joiners from the Firebase room ────
     const room = useRoomStore.getState().room;
     if (room) {
       const gameStore = useGameStore.getState();
@@ -66,12 +63,11 @@ export const Lobby: React.FC = () => {
 
       // Find all human, non-host players from the Firebase room
       const humanJoiners = Object.values(room.players).filter(
-        (p) => !p.isBot && !p.isHost && !existingPlayerIds.has(p.id)
+        (p: any) => !p.isBot && !p.isHost && !existingPlayerIds.has(p.id)
       );
 
       if (humanJoiners.length > 0) {
-        // Add joiners to the game store players
-        const newPlayers: Player[] = humanJoiners.map((jp) => ({
+        const newPlayers: Player[] = humanJoiners.map((jp: any) => ({
           id: jp.id,
           name: jp.name,
           isBot: false,
@@ -91,12 +87,12 @@ export const Lobby: React.FC = () => {
       }
     }
 
-    // Generate local game state (round, cards, challenge, etc.)
+    // ──── STEP 2: Generate the round (deals cards, challenge, etc.) ────
     startGame();
 
-    // Push the full game state to Firebase so joiners receive it
+    // ──── STEP 3: Push full game state to Firebase ────
     const fullState = useGameStore.getState();
-    await rs.pushGameState({
+    const gameStatePayload = {
       roomId: fullState.roomId,
       phase: fullState.phase,
       players: fullState.players,
@@ -126,9 +122,16 @@ export const Lobby: React.FC = () => {
       jokerReactingPlayerId: fullState.jokerReactingPlayerId,
       votingInProgress: fullState.votingInProgress,
       votes: fullState.votes,
+    };
+
+    console.log('🚀 Host pushing game state:', {
+      phase: fullState.phase,
+      players: fullState.players.map(p => ({ id: p.id, name: p.name, isBot: p.isBot })),
     });
 
-    // Update Firebase status so joiners know the game started
+    await rs.pushGameState(gameStatePayload);
+
+    // ──── STEP 4: Update room status so joiners know the game started ────
     await rs.startGame();
   };
 
@@ -256,6 +259,25 @@ export const Lobby: React.FC = () => {
   }
 
   // ============================================================
+  // JOINER: Waiting for host's game state to arrive via Firebase
+  // (Room status changed to 'playing' but we don't have cards yet)
+  // ============================================================
+  if (!rs.isInLobby && !rs.isHost && rs.room && phase === 'lobby') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-indigo-950 to-purple-950 flex items-center justify-center p-4">
+        <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/10 p-8 max-w-md w-full shadow-2xl text-center">
+          <div className="text-6xl mb-4 animate-pulse">🎮</div>
+          <h3 className="text-white font-black text-xl mb-2">Game is Starting!</h3>
+          <p className="text-purple-200/60 text-sm mb-4">The host has started the game. Syncing game state...</p>
+          <div className="inline-flex items-center gap-2 bg-purple-500/10 px-4 py-2 rounded-full border border-purple-500/20 text-purple-300 text-xs font-bold animate-pulse">
+            ⏳ Loading cards...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
   // MAIN MENU
   // ============================================================
   return (
@@ -282,7 +304,6 @@ export const Lobby: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-lg w-full">
-        {/* Logo */}
         <div className="text-center mb-10">
           <div className="inline-block mb-4">
             <h1
@@ -303,9 +324,7 @@ export const Lobby: React.FC = () => {
           <p className="text-cyan-400/50 text-xs tracking-[0.4em] uppercase font-bold">Tunisian Card Game</p>
         </div>
 
-        {/* Form */}
         <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/10 p-8 shadow-2xl">
-          {/* Tabs */}
           <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl">
             <button
               onClick={() => setMode('create')}
@@ -328,7 +347,6 @@ export const Lobby: React.FC = () => {
           </div>
 
           <div className="space-y-5">
-            {/* Name */}
             <div>
               <label className="block text-white/60 text-xs font-bold uppercase tracking-wider mb-2">
                 👤 Your Nickname
@@ -346,29 +364,22 @@ export const Lobby: React.FC = () => {
               />
             </div>
 
-            {/* CREATE MODE */}
             {mode === 'create' && (
               <>
-                {/* Bot toggle */}
                 <div>
                   <label
                     className="flex items-center gap-3 cursor-pointer group"
                     onClick={() => !isLoading && setIncludeBots(!includeBots)}
                   >
                     <div
-                      className={`
-                        relative w-11 h-6 rounded-full transition-all duration-300 flex-shrink-0
-                        ${includeBots
+                      className={`relative w-11 h-6 rounded-full transition-all duration-300 flex-shrink-0 ${includeBots
                           ? 'bg-gradient-to-r from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/30'
                           : 'bg-white/10 border border-white/10'
-                        }
-                      `}
+                        }`}
                     >
                       <div
-                        className={`
-                          absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300
-                          ${includeBots ? 'left-[22px]' : 'left-0.5'}
-                        `}
+                        className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${includeBots ? 'left-[22px]' : 'left-0.5'
+                          }`}
                       />
                     </div>
                     <span className="text-white/60 text-xs font-bold uppercase tracking-wider group-hover:text-white/80 transition-colors">
@@ -377,12 +388,8 @@ export const Lobby: React.FC = () => {
                   </label>
                 </div>
 
-                {/* Bot count selector — visible only when toggle is on */}
                 {includeBots && (
-                  <div
-                    className="overflow-hidden transition-all duration-300"
-                    style={{ animation: 'fadeSlideIn 0.3s ease-out' }}
-                  >
+                  <div style={{ animation: 'fadeSlideIn 0.3s ease-out' }}>
                     <label className="block text-white/60 text-xs font-bold uppercase tracking-wider mb-2">
                       Number of Bots
                     </label>
@@ -392,13 +399,10 @@ export const Lobby: React.FC = () => {
                           key={n}
                           onClick={() => setBotCount(n)}
                           disabled={isLoading}
-                          className={`
-                            flex-1 py-3 rounded-xl font-bold text-sm transition-all duration-200
-                            ${botCount === n
+                          className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all duration-200 ${botCount === n
                               ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30 scale-105'
                               : 'bg-white/5 text-white/40 hover:bg-white/10 border border-white/10 hover:text-white/70'
-                            }
-                          `}
+                            }`}
                         >
                           {n}
                         </button>
@@ -418,20 +422,16 @@ export const Lobby: React.FC = () => {
                 <button
                   onClick={handleCreate}
                   disabled={!playerName.trim() || isLoading}
-                  className={`
-                    w-full py-4 rounded-xl font-black text-xl tracking-wider transition-all duration-300
-                    ${playerName.trim() && !isLoading
+                  className={`w-full py-4 rounded-xl font-black text-xl tracking-wider transition-all duration-300 ${playerName.trim() && !isLoading
                       ? 'bg-gradient-to-r from-orange-500 via-red-500 to-pink-600 text-white hover:shadow-2xl hover:shadow-red-500/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
                       : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                    }
-                  `}
+                    }`}
                 >
                   {isLoading ? '⏳ Creating...' : '🔥 CREATE GAME'}
                 </button>
               </>
             )}
 
-            {/* JOIN MODE */}
             {mode === 'join' && (
               <>
                 <div>
@@ -461,20 +461,16 @@ export const Lobby: React.FC = () => {
                 <button
                   onClick={handleJoin}
                   disabled={!playerName.trim() || roomCode.length < 6 || isLoading}
-                  className={`
-                    w-full py-4 rounded-xl font-black text-xl tracking-wider transition-all duration-300
-                    ${playerName.trim() && roomCode.length >= 6 && !isLoading
+                  className={`w-full py-4 rounded-xl font-black text-xl tracking-wider transition-all duration-300 ${playerName.trim() && roomCode.length >= 6 && !isLoading
                       ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white hover:shadow-2xl hover:shadow-purple-500/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
                       : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                    }
-                  `}
+                    }`}
                 >
                   {isLoading ? '⏳ Joining...' : '🚪 JOIN GAME'}
                 </button>
               </>
             )}
 
-            {/* Rules */}
             <button
               onClick={() => setShowRules(true)}
               className="w-full py-2 text-white/30 text-sm hover:text-white/60 transition-colors"
@@ -485,7 +481,6 @@ export const Lobby: React.FC = () => {
           </div>
         </div>
 
-        {/* Info cards */}
         <div className="grid grid-cols-3 gap-2 mt-6">
           <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5 text-center">
             <div className="text-xl mb-1">🎴</div>
@@ -506,7 +501,6 @@ export const Lobby: React.FC = () => {
         </p>
       </div>
 
-      {/* Rules modal */}
       {showRules && (
         <div className="fixed inset-0 z-50">
           <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4 overflow-auto">
