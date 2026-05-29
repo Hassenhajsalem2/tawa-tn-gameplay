@@ -13,14 +13,11 @@ export const TawaButton: React.FC<TawaButtonProps> = ({ onTawa, disabled }) => {
     if (disabled) return;
 
     if (!showConfirm) {
-      // First click — show confirmation
       setShowConfirm(true);
-      // Auto-hide after 3s if not confirmed
       setTimeout(() => setShowConfirm(false), 3000);
       return;
     }
 
-    // Second click — confirmed!
     setShowConfirm(false);
     setAnimating(true);
     setTimeout(() => {

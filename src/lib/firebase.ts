@@ -2,7 +2,6 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, get, onValue, off, remove } from 'firebase/database';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 
-// Your Firebase config loaded dynamically from .env
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -11,7 +10,7 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 let app: ReturnType<typeof initializeApp>;
@@ -67,7 +66,7 @@ export function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars[Math.floor(Math.random() * chars.length)];
   }
   return code;
 }
@@ -88,7 +87,7 @@ export async function fbCreateRoom(hostId: string, hostName: string): Promise<FB
         isBot: false,
         isReady: true,
         joinedAt: Date.now(),
-      }
+      },
     },
     status: 'waiting',
     createdAt: Date.now(),
@@ -122,19 +121,20 @@ export async function fbAddBot(roomId: string, botId: string, botName: string): 
 // ============================================================
 // JOIN ROOM
 // ============================================================
-export async function fbJoinRoom(roomId: string, playerId: string, playerName: string): Promise<FBRoom | null> {
+export async function fbJoinRoom(
+  roomId: string,
+  playerId: string,
+  playerName: string
+): Promise<FBRoom | null> {
   const roomCode = roomId.toUpperCase();
-  
   try {
     const snapshot = await get(ref(db, `rooms/${roomCode}`));
-
     if (!snapshot.exists()) {
       console.log('❌ Room not found:', roomCode);
       return null;
     }
 
     const room = snapshot.val() as FBRoom;
-
     if (room.status !== 'waiting') {
       console.log('❌ Room not waiting:', room.status);
       return null;
@@ -199,7 +199,10 @@ export async function fbSetGameState(roomId: string, gameState: any): Promise<vo
   await set(ref(db, `rooms/${roomId}/gameState`), gameState);
 }
 
-export function fbSubscribeToGameState(roomId: string, callback: (state: any | null) => void): () => void {
+export function fbSubscribeToGameState(
+  roomId: string,
+  callback: (state: any | null) => void
+): () => void {
   const gsRef = ref(db, `rooms/${roomId}/gameState`);
   const handler = onValue(gsRef, (snapshot) => {
     if (snapshot.exists()) {
@@ -214,7 +217,10 @@ export function fbSubscribeToGameState(roomId: string, callback: (state: any | n
 // ============================================================
 // SUBSCRIBE (real-time)
 // ============================================================
-export function fbSubscribeToRoom(roomId: string, callback: (room: FBRoom | null) => void): () => void {
+export function fbSubscribeToRoom(
+  roomId: string,
+  callback: (room: FBRoom | null) => void
+): () => void {
   const roomRef = ref(db, `rooms/${roomId}`);
   const handler = onValue(roomRef, (snapshot) => {
     if (snapshot.exists()) {

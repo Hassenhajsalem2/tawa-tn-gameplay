@@ -50,7 +50,7 @@ interface GameStore extends GameState {
   setEffectStep: (step: 'select_player' | 'select_card' | 'confirm' | null) => void;
   peekedCard: { playerId: string; cardIndex: number; card: import('@/types/game').GameCard } | null;
   setPeekedCard: (card: { playerId: string; cardIndex: number; card: import('@/types/game').GameCard } | null) => void;
-  
+
   // Discard animation state
   discardMessage: string | null;
 }
@@ -239,43 +239,69 @@ export const useGameStore = create<GameStore>((set, get) => ({
 }));
 
 // Auto-sync game store to Firebase if current user is the host
-useGameStore.subscribe((state) => {
-  import('./roomStore').then(({ useRoomStore }) => {
-    const roomState = useRoomStore.getState();
-    if (roomState.isHost && roomState.room) {
-      // Extract serializable game state
-      const gameState = {
-        roomId: state.roomId,
-        phase: state.phase,
-        players: state.players,
-        currentPlayerIndex: state.currentPlayerIndex,
-        drawPile: state.drawPile,
-        discardPile: state.discardPile,
-        currentChallenge: state.currentChallenge,
-        challengeDeck: state.challengeDeck,
-        funnyCards: state.funnyCards,
-        visibilityMode: state.visibilityMode,
-        round: state.round,
-        maxRounds: state.maxRounds,
-        pendingEffect: state.pendingEffect,
-        drawnCard: state.drawnCard,
-        hasDrawn: state.hasDrawn,
-        hasDiscarded: state.hasDiscarded,
-        tawaCallerId: state.tawaCallerId,
-        winner: state.winner,
-        roundWinner: state.roundWinner,
-        funnyCardResult: state.funnyCardResult,
-        message: state.message,
-        turnTimer: state.turnTimer,
-        showDeckBrowser: state.showDeckBrowser,
-        passItPending: state.passItPending,
-        passItSelections: state.passItSelections,
-        jokerReactionWindow: state.jokerReactionWindow,
-        jokerReactingPlayerId: state.jokerReactingPlayerId,
-        votingInProgress: state.votingInProgress,
-        votes: state.votes,
-      };
-      roomState.pushGameState(gameState);
-    }
-  });
+// We use a debounce to avoid excessive writes and only sync during active gameplay
+let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+useGameStore.subscribe((state, prevState) => {
+  // Only sync if:
+  // 1. The phase changed, OR significant game state changed
+  // 2. We're not in lobby (lobby state is managed separately)
+  // Skip syncing if nothing important changed
+  if (state.phase === 'lobby') return;
+
+  // Skip if the phase didn't change and no game-critical fields changed
+  const phaseChanged = state.phase !== prevState.phase;
+  const turnChanged = state.currentPlayerIndex !== prevState.currentPlayerIndex;
+  const significantChange = phaseChanged || turnChanged ||
+    state.hasDrawn !== prevState.hasDrawn ||
+    state.hasDiscarded !== prevState.hasDiscarded ||
+    state.pendingEffect !== prevState.pendingEffect ||
+    state.tawaCallerId !== prevState.tawaCallerId ||
+    state.round !== prevState.round;
+
+  if (!significantChange) return;
+
+  // Debounce: wait a short time before pushing to avoid rapid-fire writes
+  if (syncTimeout) clearTimeout(syncTimeout);
+
+  syncTimeout = setTimeout(() => {
+    import('./roomStore').then(({ useRoomStore }) => {
+      const roomState = useRoomStore.getState();
+      if (roomState.isHost && roomState.room) {
+        // Extract serializable game state
+        const gameState = {
+          roomId: state.roomId,
+          phase: state.phase,
+          players: state.players,
+          currentPlayerIndex: state.currentPlayerIndex,
+          drawPile: state.drawPile,
+          discardPile: state.discardPile,
+          currentChallenge: state.currentChallenge,
+          challengeDeck: state.challengeDeck,
+          funnyCards: state.funnyCards,
+          visibilityMode: state.visibilityMode,
+          round: state.round,
+          maxRounds: state.maxRounds,
+          pendingEffect: state.pendingEffect,
+          drawnCard: state.drawnCard,
+          hasDrawn: state.hasDrawn,
+          hasDiscarded: state.hasDiscarded,
+          tawaCallerId: state.tawaCallerId,
+          winner: state.winner,
+          roundWinner: state.roundWinner,
+          funnyCardResult: state.funnyCardResult,
+          message: state.message,
+          turnTimer: state.turnTimer,
+          showDeckBrowser: state.showDeckBrowser,
+          passItPending: state.passItPending,
+          passItSelections: state.passItSelections,
+          jokerReactionWindow: state.jokerReactionWindow,
+          jokerReactingPlayerId: state.jokerReactingPlayerId,
+          votingInProgress: state.votingInProgress,
+          votes: state.votes,
+        };
+        roomState.pushGameState(gameState);
+      }
+    });
+  }, 150);
 });

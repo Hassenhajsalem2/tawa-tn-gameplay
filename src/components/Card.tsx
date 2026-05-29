@@ -5,24 +5,17 @@ interface CardProps {
   card: GameCard;
   faceDown?: boolean;
   selected?: boolean;
-  highlighted?: boolean;
   onClick?: () => void;
-  small?: boolean;
+  highlighted?: boolean;
   glowing?: boolean;
+  small?: boolean;
 }
 
 const colorMap: Record<string, string> = {
-  red: 'from-red-600 to-red-800 border-red-400',
-  blue: 'from-blue-600 to-blue-800 border-blue-400',
-  green: 'from-emerald-600 to-emerald-800 border-emerald-400',
-  yellow: 'from-amber-500 to-amber-700 border-amber-400',
-};
-
-const colorTextMap: Record<string, string> = {
-  red: 'text-red-200',
-  blue: 'text-blue-200',
-  green: 'text-emerald-200',
-  yellow: 'text-amber-200',
+  red: 'from-red-500 to-rose-700 border-red-400',
+  blue: 'from-blue-500 to-indigo-700 border-blue-400',
+  green: 'from-emerald-500 to-green-700 border-emerald-400',
+  yellow: 'from-yellow-400 to-amber-600 border-yellow-300',
 };
 
 const colorDotMap: Record<string, string> = {
@@ -34,104 +27,126 @@ const colorDotMap: Record<string, string> = {
 
 export const Card: React.FC<CardProps> = ({
   card,
-  faceDown = false,
-  selected = false,
-  highlighted = false,
+  faceDown,
+  selected,
   onClick,
-  small = false,
-  glowing = false,
+  highlighted,
+  glowing,
+  small,
 }) => {
-  const baseClasses = `
-    relative rounded-xl border-2 cursor-pointer select-none
-    transition-all duration-300 transform
-    ${small ? 'w-16 h-24 text-xs' : 'w-20 h-32 text-sm'}
-    ${selected ? 'ring-4 ring-yellow-400 scale-110 -translate-y-2 shadow-lg shadow-yellow-400/50' : ''}
-    ${highlighted ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-400/30' : ''}
-    ${glowing ? 'animate-pulse ring-2 ring-purple-400 shadow-lg shadow-purple-500/50' : ''}
-    ${onClick ? 'hover:scale-105 hover:-translate-y-1 active:scale-95' : ''}
-  `;
-
   if (faceDown) {
     return (
       <div
-        className={`${baseClasses} bg-gradient-to-br from-indigo-900 to-purple-950 border-indigo-500/50`}
         onClick={onClick}
+        className={`
+          relative rounded-xl border-2 cursor-pointer select-none transition-all duration-200
+          bg-gradient-to-br from-indigo-900 to-purple-900 border-purple-500/50
+          ${small ? 'w-10 h-14' : 'w-16 h-22'}
+          ${selected ? 'ring-2 ring-yellow-400 -translate-y-2 shadow-lg shadow-yellow-500/30' : ''}
+          ${highlighted ? 'hover:-translate-y-1 hover:shadow-lg hover:border-cyan-400/60' : ''}
+          ${glowing ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-500/40' : ''}
+        `}
       >
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-2xl opacity-50">🌙</div>
+        <div className="absolute inset-0 flex items-center justify-center text-2xl opacity-60">
+          🌙
         </div>
-        <div className="absolute inset-1 border border-indigo-500/20 rounded-lg" />
-        <div className="absolute inset-2 border border-indigo-500/10 rounded-md flex items-center justify-center">
-          <div className="w-6 h-6 border-2 border-indigo-400/30 rounded-full" />
-        </div>
+        <div className="absolute inset-1 rounded-lg border border-purple-400/20" />
       </div>
     );
   }
 
   if (card.type === 'number') {
     const numCard = card as NumberCard;
+    const grad = colorMap[numCard.color] || 'from-gray-500 to-gray-700 border-gray-400';
+
     return (
       <div
-        className={`${baseClasses} bg-gradient-to-br ${colorMap[numCard.color]} shadow-lg`}
         onClick={onClick}
+        className={`
+          relative rounded-xl border-2 cursor-pointer select-none transition-all duration-200
+          bg-gradient-to-br ${grad}
+          ${small ? 'w-10 h-14' : 'w-16 h-[88px]'}
+          ${selected ? 'ring-2 ring-yellow-400 -translate-y-3 shadow-xl shadow-yellow-500/40' : ''}
+          ${highlighted ? 'hover:-translate-y-1.5 hover:shadow-xl' : ''}
+          ${glowing ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-500/40' : ''}
+        `}
       >
-        <div className="absolute top-1 left-1.5 font-bold text-white/90 text-xs">
+        {/* Top number */}
+        <div className={`absolute top-1 left-1.5 font-black text-white leading-none ${small ? 'text-xs' : 'text-sm'}`}>
           {numCard.number}
         </div>
-        <div className="absolute bottom-1 right-1.5 font-bold text-white/90 text-xs rotate-180">
+        {/* Center number */}
+        <div className={`absolute inset-0 flex items-center justify-center font-black text-white/90 ${small ? 'text-lg' : 'text-3xl'}`}>
           {numCard.number}
         </div>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`font-black ${small ? 'text-2xl' : 'text-3xl'} text-white drop-shadow-lg`}>
-            {numCard.number}
-          </span>
-          <span className="text-xs mt-0.5">{colorDotMap[numCard.color]}</span>
-        </div>
-        <div className={`absolute bottom-1 left-0 right-0 text-center text-[9px] font-medium ${colorTextMap[numCard.color]} uppercase tracking-wider`}>
-          {numCard.color}
-        </div>
+        {/* Bottom */}
+        {!small && (
+          <div className="absolute bottom-1 right-1.5 flex flex-col items-end gap-0.5">
+            <span className="font-black text-white text-sm leading-none rotate-180">{numCard.number}</span>
+            <span className="text-[10px]">{colorDotMap[numCard.color]}</span>
+          </div>
+        )}
       </div>
     );
   }
 
   // Special card
   const specCard = card as SpecialCard;
+
   return (
     <div
-      className={`${baseClasses} bg-gradient-to-br from-purple-700 to-fuchsia-900 border-purple-400 shadow-lg shadow-purple-500/20`}
       onClick={onClick}
+      className={`
+        relative rounded-xl border-2 cursor-pointer select-none transition-all duration-200
+        bg-gradient-to-br from-violet-800 to-purple-950 border-violet-400/70
+        ${small ? 'w-10 h-14' : 'w-16 h-[88px]'}
+        ${selected ? 'ring-2 ring-yellow-400 -translate-y-3 shadow-xl shadow-yellow-500/40' : ''}
+        ${highlighted ? 'hover:-translate-y-1.5 hover:shadow-xl hover:border-violet-300' : ''}
+        ${glowing ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-500/40' : ''}
+      `}
     >
-      <div className="absolute top-0.5 left-1 text-[10px] text-purple-200">★</div>
-      <div className="absolute bottom-0.5 right-1 text-[10px] text-purple-200 rotate-180">★</div>
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-1">
-        <span className={`${small ? 'text-xl' : 'text-2xl'}`}>{specCard.icon}</span>
-        <span className={`font-bold text-white text-center leading-tight ${small ? 'text-[8px]' : 'text-[10px]'}`}>
-          {specCard.displayName}
-        </span>
-        <span className={`text-purple-300 text-center leading-tight ${small ? 'text-[6px]' : 'text-[7px]'}`}>
-          {specCard.tunisianName}
-        </span>
+      {/* Star corners */}
+      <div className="absolute top-0.5 left-1 text-[8px] text-violet-300/60">★</div>
+      <div className="absolute bottom-0.5 right-1 text-[8px] text-violet-300/60 rotate-180">★</div>
+
+      {/* Icon */}
+      <div className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 ${small ? '' : 'pt-1'}`}>
+        <span className={small ? 'text-base' : 'text-xl'}>{specCard.icon}</span>
+        {!small && (
+          <>
+            <span className="text-white font-bold text-[9px] text-center leading-tight px-0.5 line-clamp-2">
+              {specCard.displayName}
+            </span>
+            <span className="text-violet-300 text-[7px] text-center leading-tight italic px-0.5">
+              {specCard.tunisianName}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
 };
 
-export const CardBack: React.FC<{ small?: boolean; onClick?: () => void; count?: number }> = ({ small, onClick, count }) => (
+export const CardBack: React.FC<{
+  small?: boolean;
+  onClick?: () => void;
+  count?: number;
+}> = ({ small, onClick, count }) => (
   <div
-    className={`
-      relative rounded-xl border-2 cursor-pointer select-none
-      bg-gradient-to-br from-indigo-900 to-purple-950 border-indigo-500/50
-      transition-all duration-200 hover:scale-105
-      ${small ? 'w-14 h-20' : 'w-20 h-32'}
-    `}
     onClick={onClick}
+    className={`
+      relative rounded-xl border-2 border-purple-500/50 cursor-pointer select-none
+      bg-gradient-to-br from-indigo-900 to-purple-900 transition-all duration-200
+      ${small ? 'w-9 h-12' : 'w-16 h-[88px]'}
+      ${onClick ? 'hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-lg' : ''}
+    `}
   >
-    <div className="absolute inset-0 flex items-center justify-center">
-      <div className={`${small ? 'text-lg' : 'text-2xl'} opacity-60`}>🌙</div>
+    <div className={`absolute inset-0 flex items-center justify-center opacity-60 ${small ? 'text-base' : 'text-2xl'}`}>
+      🌙
     </div>
-    <div className="absolute inset-1 border border-indigo-500/20 rounded-lg" />
+    <div className="absolute inset-1 rounded-lg border border-purple-400/20" />
     {count !== undefined && (
-      <div className="absolute -top-2 -right-2 bg-indigo-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-indigo-400">
+      <div className="absolute -top-2 -right-2 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center text-white text-[10px] font-black shadow-lg">
         {count}
       </div>
     )}

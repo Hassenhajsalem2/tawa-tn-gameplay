@@ -1,7 +1,3 @@
-// ============================================================
-// TAWA Game Types
-// ============================================================
-
 export type CardColor = 'red' | 'blue' | 'green' | 'yellow';
 
 export interface NumberCard {
@@ -11,27 +7,13 @@ export interface NumberCard {
   color: CardColor;
 }
 
-export type SpecialName =
-  | 'peek_swap'
-  | 'shuffle'
-  | 'always_look'
-  | 'as_i_wish'
-  | 'play_again'
-  | 'blocked'
-  | 'pick_from_deck'
-  | 'pass_it'
-  | 'new_challenge'
-  | 'lucky_seven'
-  | 'joker';
-
 export interface SpecialCard {
   id: string;
   type: 'special';
-  name: SpecialName;
+  name: string;
   displayName: string;
   tunisianName: string;
   icon: string;
-  effect: string;
 }
 
 export type GameCard = NumberCard | SpecialCard;
@@ -47,20 +29,9 @@ export interface ChallengeCard {
 export interface FunnyCard {
   id: string;
   name: string;
-  action: string;
   icon: string;
+  action: string;
 }
-
-export type GamePhase =
-  | 'lobby'
-  | 'draw_challenge'
-  | 'choice_circle'
-  | 'playing'
-  | 'tawa_called'
-  | 'round_end'
-  | 'game_end';
-
-export type VisibilityMode = 'reveal_all' | 'reveal_two' | 'keep_hidden';
 
 export interface Player {
   id: string;
@@ -76,17 +47,24 @@ export interface Player {
   connected: boolean;
 }
 
-export interface EffectAction {
-  type: SpecialName | 'none';
+export type VisibilityMode = 'reveal_all' | 'reveal_two' | 'keep_hidden';
+
+export type GamePhase =
+  | 'lobby'
+  | 'draw_challenge'
+  | 'playing'
+  | 'tawa_called'
+  | 'round_end'
+  | 'game_end';
+
+export interface PendingEffect {
+  type: string;
   sourcePlayerId: string;
-  targetPlayerId?: string;
-  targetCardIndex?: number;
-  sourceCardIndex?: number;
   resolved: boolean;
 }
 
 export interface GameState {
-  roomId: string;
+  roomId: string | null;
   phase: GamePhase;
   players: Player[];
   currentPlayerIndex: number;
@@ -98,7 +76,7 @@ export interface GameState {
   visibilityMode: VisibilityMode;
   round: number;
   maxRounds: number;
-  pendingEffect: EffectAction | null;
+  pendingEffect: PendingEffect | null;
   drawnCard: GameCard | null;
   hasDrawn: boolean;
   hasDiscarded: boolean;
@@ -107,7 +85,7 @@ export interface GameState {
   roundWinner: string | null;
   funnyCardResult: FunnyCard | null;
   message: string;
-  turnTimer: number;
+  turnTimer: number | null;
   animatingCard: string | null;
   showDeckBrowser: boolean;
   passItPending: boolean;
@@ -115,5 +93,5 @@ export interface GameState {
   jokerReactionWindow: boolean;
   jokerReactingPlayerId: string | null;
   votingInProgress: boolean;
-  votes: Record<string, VisibilityMode>;
+  votes: Record<string, string>;
 }

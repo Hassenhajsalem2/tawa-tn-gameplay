@@ -19,10 +19,16 @@ export const GameBoard: React.FC = () => {
   const [showChallengeReveal, setShowChallengeReveal] = useState(false);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const humanPlayer = store.players.find(p => !p.isBot);
-  const opponents = store.players.filter(p => p.isBot);
+  // Get the current user's ID from the room store
+  const currentUserId = useRoomStore(s => s.userId);
+  const isHost = useRoomStore(s => s.isHost);
+
+  // Find the current user's player entry — could be 'player-human' for host
+  // or the Firebase UID for joiners
+  const humanPlayer = store.players.find(p => !p.isBot && (p.id === currentUserId || p.id === 'player-human'));
+  const opponents = store.players.filter(p => p.id !== humanPlayer?.id);
   const currentPlayer = store.players[store.currentPlayerIndex];
-  const isHumanTurn = currentPlayer && !currentPlayer.isBot;
+  const isHumanTurn = currentPlayer && currentPlayer.id === humanPlayer?.id;
 
   // Challenge reveal animation
   useEffect(() => {
@@ -61,7 +67,6 @@ export const GameBoard: React.FC = () => {
 
   // Bot turn processing (Host only)
   useEffect(() => {
-    const isHost = useRoomStore.getState().isHost;
     if (isHost && store.phase === 'playing' && currentPlayer?.isBot && !store.pendingEffect) {
       if (botTimerRef.current) clearTimeout(botTimerRef.current);
       botTimerRef.current = setTimeout(() => {
@@ -71,7 +76,7 @@ export const GameBoard: React.FC = () => {
         if (botTimerRef.current) clearTimeout(botTimerRef.current);
       };
     }
-  }, [store.phase, store.currentPlayerIndex, currentPlayer?.isBot, store.pendingEffect]);
+  }, [store.phase, store.currentPlayerIndex, currentPlayer?.isBot, store.pendingEffect, isHost]);
 
   // Reset selected card when turn changes
   useEffect(() => {
@@ -97,11 +102,10 @@ export const GameBoard: React.FC = () => {
 
   // Choice circle
   if (store.phase === 'choice_circle') {
-    const isHost = useRoomStore.getState().isHost;
     if (isHost) {
       return <VisibilityVote onSelect={(mode) => store.selectVisibility(mode)} />;
     }
-    
+
     return (
       <div className="fixed inset-0 bg-gradient-to-br from-gray-950 via-indigo-950 to-purple-950 z-50 flex items-center justify-center p-4">
         <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/10 p-8 max-w-md w-full shadow-2xl text-center">
@@ -147,11 +151,10 @@ export const GameBoard: React.FC = () => {
               {store.players.map(p => (
                 <div
                   key={p.id}
-                  className={`text-center p-3 rounded-xl ${
-                    p.id === store.roundWinner
+                  className={`text-center p-3 rounded-xl ${p.id === store.roundWinner
                       ? 'ring-2 ring-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/20'
                       : 'bg-white/5'
-                  }`}
+                    }`}
                 >
                   <p className="text-white text-sm font-bold mb-2 flex items-center justify-center gap-1">
                     {p.isBot ? '🤖' : '👤'} {p.name}
@@ -161,12 +164,11 @@ export const GameBoard: React.FC = () => {
                     {p.hand.map(card => (
                       <div key={card.id} className="w-12 h-16">
                         {card.type === 'number' ? (
-                          <div className={`w-full h-full rounded-lg bg-gradient-to-br ${
-                            card.color === 'red' ? 'from-red-500 to-red-700' :
-                            card.color === 'blue' ? 'from-blue-500 to-blue-700' :
-                            card.color === 'green' ? 'from-emerald-500 to-emerald-700' :
-                            'from-amber-400 to-amber-600'
-                          } flex items-center justify-center text-white font-black text-lg shadow-md`}>
+                          <div className={`w-full h-full rounded-lg bg-gradient-to-br ${card.color === 'red' ? 'from-red-500 to-red-700' :
+                              card.color === 'blue' ? 'from-blue-500 to-blue-700' :
+                                card.color === 'green' ? 'from-emerald-500 to-emerald-700' :
+                                  'from-amber-400 to-amber-600'
+                            } flex items-center justify-center text-white font-black text-lg shadow-md`}>
                             {card.number}
                           </div>
                         ) : (
@@ -324,7 +326,7 @@ export const GameBoard: React.FC = () => {
               isActive={store.players[store.currentPlayerIndex]?.id === p.id}
               isTargetable={false}
               isSelected={false}
-              onSelect={() => {}}
+              onSelect={() => { }}
             />
           ))}
         </div>

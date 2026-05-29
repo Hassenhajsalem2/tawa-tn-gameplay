@@ -30,7 +30,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   const handleCardClick = (index: number) => {
     if (!canInteract) return;
     if (selectedCardIndex === index) {
-      // Confirm discard
       onDiscard(index);
       onSelectCard(null);
     } else {
@@ -62,7 +61,10 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
       <div className="flex items-end gap-2 justify-center flex-wrap">
         {player.hand.map((card, index) => {
-          const isRevealed = canSeeCards || player.canSeeOwnCards || player.revealedCardIds.includes(card.id);
+          const isRevealed =
+            canSeeCards ||
+            player.canSeeOwnCards ||
+            player.revealedCardIds.includes(card.id);
           return (
             <div key={card.id} className="relative">
               <Card

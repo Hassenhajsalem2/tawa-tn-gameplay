@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { useRoomStore } from '@/store/roomStore';
+import { Player } from '@/types/game';
 
 const CARD_PREVIEWS = [
   { emoji: '👀', name: 'Peek & Swap' },
@@ -53,8 +54,43 @@ export const Lobby: React.FC = () => {
   };
 
   // Handle start game (host only)
-  // Host generates the round, pushes the state to Firebase, then sets status
+  // Host generates the round, merges all room players into the game state,
+  // pushes the state to Firebase, then sets status
   const handleStart = async () => {
+    // Before starting, merge all human joiners from the Firebase room
+    // into the game state's players array
+    const room = useRoomStore.getState().room;
+    if (room) {
+      const gameStore = useGameStore.getState();
+      const existingPlayerIds = new Set(gameStore.players.map(p => p.id));
+
+      // Find all human, non-host players from the Firebase room
+      const humanJoiners = Object.values(room.players).filter(
+        (p) => !p.isBot && !p.isHost && !existingPlayerIds.has(p.id)
+      );
+
+      if (humanJoiners.length > 0) {
+        // Add joiners to the game store players
+        const newPlayers: Player[] = humanJoiners.map((jp) => ({
+          id: jp.id,
+          name: jp.name,
+          isBot: false,
+          isHost: false,
+          isReady: true,
+          hand: [],
+          score: 0,
+          isBlocked: false,
+          canSeeOwnCards: false,
+          revealedCardIds: [],
+          connected: true,
+        }));
+
+        useGameStore.setState({
+          players: [...gameStore.players, ...newPlayers],
+        });
+      }
+    }
+
     // Generate local game state (round, cards, challenge, etc.)
     startGame();
 
@@ -102,7 +138,7 @@ export const Lobby: React.FC = () => {
     navigator.clipboard.writeText(rs.room.id).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+    }).catch(() => { });
   };
 
   const isLoading = rs.status === 'connecting';
@@ -273,21 +309,19 @@ export const Lobby: React.FC = () => {
           <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl">
             <button
               onClick={() => setMode('create')}
-              className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${
-                mode === 'create'
+              className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${mode === 'create'
                   ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-white shadow-md border border-cyan-500/20'
                   : 'text-white/40 hover:text-white/70'
-              }`}
+                }`}
             >
               🔥 Create Game
             </button>
             <button
               onClick={() => setMode('join')}
-              className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${
-                mode === 'join'
+              className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${mode === 'join'
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white shadow-md border border-purple-500/20'
                   : 'text-white/40 hover:text-white/70'
-              }`}
+                }`}
             >
               🚪 Join Game
             </button>

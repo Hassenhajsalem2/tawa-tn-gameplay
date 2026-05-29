@@ -10,7 +10,6 @@ interface ChallengeBannerProps {
 export const ChallengeBanner: React.FC<ChallengeBannerProps> = ({ challenge, round, maxRounds }) => {
   return (
     <div className="relative overflow-hidden bg-gradient-to-r from-indigo-900/80 via-purple-900/80 to-indigo-900/80 backdrop-blur-sm rounded-xl border border-purple-500/30 px-4 py-2.5 shadow-lg">
-      {/* Decorative elements */}
       <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
       <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
 

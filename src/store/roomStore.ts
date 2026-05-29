@@ -13,8 +13,7 @@ import {
   FBPlayer,
 } from '@/lib/firebase';
 
-const BOT_NAMES = ['Aziz 🇹🇳', 'Yasmine 🌸', 'Khalil 🎯', 'Meriem ⭐', 'Nour 🌙'];
-
+const BOT_NAMES = ['Hassen 🇹🇳', 'Oumaima 🌸', 'Khaled 🎯', 'Tasnime ⭐', 'Bader 🌙'];
 type RoomStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 interface RoomStore {
@@ -66,7 +65,9 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
       // Step 4: Subscribe to real-time updates
       const unsub = fbSubscribeToRoom(room.id, (updatedRoom) => {
         if (updatedRoom) {
-          set({ room: updatedRoom });
+          // If room status is 'playing', we are no longer in lobby
+          const gameStarted = updatedRoom.status === 'playing' || updatedRoom.status === 'finished';
+          set({ room: updatedRoom, isInLobby: !gameStarted });
         }
       });
 
@@ -106,7 +107,9 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
       // Step 3: Subscribe to room updates
       const unsub = fbSubscribeToRoom(room.id, (updatedRoom) => {
         if (updatedRoom) {
-          set({ room: updatedRoom });
+          // If room status is 'playing', we are no longer in lobby
+          const gameStarted = updatedRoom.status === 'playing' || updatedRoom.status === 'finished';
+          set({ room: updatedRoom, isInLobby: !gameStarted });
         } else {
           set({ room: null, isInLobby: false, status: 'idle' });
         }
@@ -116,16 +119,26 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
       const unsubGS = fbSubscribeToGameState(room.id, async (remoteState) => {
         if (remoteState && !get().isHost) {
           console.log('📡 Received game state from host, phase:', remoteState.phase);
+
+          // Import gameStore dynamically to avoid circular dependency
           const { useGameStore } = await import('./gameStore');
+
           // Apply the host's game state to the local store
-          useGameStore.setState(remoteState);
+          useGameStore.setState({
+            ...remoteState,
+          });
+
+          // If we received a non-lobby phase, ensure we leave the lobby view
+          if (remoteState.phase && remoteState.phase !== 'lobby') {
+            set({ isInLobby: false });
+          }
         }
       });
 
       set({
         room,
         isHost: false,
-        isInLobby: true,
+        isInLobby: room.status === 'waiting',
         status: 'connected',
         _unsub: unsub,
         _unsubGameState: unsubGS,
@@ -144,7 +157,7 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     if (_unsub) _unsub();
     if (_unsubGameState) _unsubGameState();
     if (room && userId) {
-      fbLeaveRoom(room.id, userId).catch(() => {});
+      fbLeaveRoom(room.id, userId).catch(() => { });
     }
     set({
       room: null,

@@ -6,24 +6,9 @@ interface VisibilityVoteProps {
 }
 
 const options: { mode: VisibilityMode; icon: string; title: string; desc: string }[] = [
-  {
-    mode: 'reveal_all',
-    icon: '👁️',
-    title: 'Reveal All',
-    desc: 'See all your cards from the start',
-  },
-  {
-    mode: 'reveal_two',
-    icon: '👀',
-    title: 'Reveal Two',
-    desc: 'See 2 random cards at the start',
-  },
-  {
-    mode: 'keep_hidden',
-    icon: '🙈',
-    title: 'Keep Hidden',
-    desc: 'Full mystery! All cards face down',
-  },
+  { mode: 'reveal_all', icon: '👁️', title: 'Reveal All', desc: 'See all your cards from the start' },
+  { mode: 'reveal_two', icon: '👀', title: 'Reveal Two', desc: 'See 2 random cards at the start' },
+  { mode: 'keep_hidden', icon: '🙈', title: 'Keep Hidden', desc: 'Full mystery! All cards face down' },
 ];
 
 export const VisibilityVote: React.FC<VisibilityVoteProps> = ({ onSelect }) => {
