@@ -3,6 +3,7 @@ import { useRoomStore } from '@/store/roomStore';
 import { Lobby } from '@/components/Lobby';
 import { GameBoard } from '@/components/GameBoard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { Analytics } from '@vercel/analytics/react';
 
 function App() {
   const phase = useGameStore(s => s.phase);
@@ -18,6 +19,7 @@ function App() {
     return (
       <ErrorBoundary>
         <Lobby />
+        <Analytics />
       </ErrorBoundary>
     );
   }
@@ -30,6 +32,7 @@ function App() {
   return (
     <ErrorBoundary>
       <GameBoard />
+      <Analytics />
     </ErrorBoundary>
   );
 }
