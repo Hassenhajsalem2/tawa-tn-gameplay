@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChallengeCard } from '@/types/game';
 
 interface ChallengeBannerProps {
@@ -8,32 +8,47 @@ interface ChallengeBannerProps {
 }
 
 export const ChallengeBanner: React.FC<ChallengeBannerProps> = ({ challenge, round, maxRounds }) => {
-  return (
-    <div className="relative overflow-hidden bg-gradient-to-r from-indigo-900/80 via-purple-900/80 to-indigo-900/80 backdrop-blur-sm rounded-xl border border-purple-500/30 px-4 py-2.5 shadow-lg">
-      <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
-      <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
+  const [animate, setAnimate] = useState(false);
 
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🏆</span>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-white font-black text-sm tracking-wide">
-                {challenge.tunisianName}
-              </h3>
-              <span className="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full font-bold border border-amber-500/30">
-                +{challenge.points} pts
-              </span>
+  // Re-trigger entrance animation whenever challenge changes
+  useEffect(() => {
+    setAnimate(false);
+    const t = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setAnimate(true));
+    });
+    return () => cancelAnimationFrame(t);
+  }, [challenge.tunisianName]);
+
+  return (
+    <div
+      className="challenge-banner-wrap"
+      style={{
+        opacity: animate ? 1 : 0,
+        transform: animate ? 'translateY(0) scale(1)' : 'translateY(-12px) scale(0.97)',
+        transition: 'opacity 0.4s ease, transform 0.4s ease',
+      }}
+    >
+      {/* Animated glow border */}
+      <div className="challenge-banner-glow" />
+
+      <div className="challenge-banner-inner">
+        {/* Left — trophy + text */}
+        <div className="challenge-banner-left">
+          <div className="challenge-trophy">🏆</div>
+          <div className="challenge-text-group">
+            <div className="challenge-label-row">
+              <span className="challenge-label">CHALLENGE</span>
+              <span className="challenge-round-badge">Round {round}/{maxRounds}</span>
             </div>
-            <p className="text-purple-200/80 text-[11px] mt-0.5">
-              {challenge.condition}
-            </p>
+            <h2 className="challenge-title">{challenge.tunisianName}</h2>
+            <p className="challenge-condition">{challenge.condition}</p>
           </div>
         </div>
 
-        <div className="text-right">
-          <div className="text-[10px] text-cyan-300/70 uppercase tracking-wider font-bold">Round</div>
-          <div className="text-white font-black text-lg leading-tight">{round}/{maxRounds}</div>
+        {/* Right — points */}
+        <div className="challenge-points-badge">
+          <span className="challenge-points-value">+{challenge.points}</span>
+          <span className="challenge-points-label">pts</span>
         </div>
       </div>
     </div>

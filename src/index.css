@@ -1,31 +1,85 @@
 @import "tailwindcss";
 
+/* ─── Keyframes ──────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes glow {
   0%, 100% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.3); }
-  50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.6); }
+  50%       { box-shadow: 0 0 20px rgba(139, 92, 246, 0.6); }
 }
 
 @keyframes cardFlip {
-  0% { transform: rotateY(0deg); }
-  50% { transform: rotateY(90deg); }
+  0%   { transform: rotateY(0deg); }
+  50%  { transform: rotateY(90deg); }
   100% { transform: rotateY(0deg); }
 }
 
 @keyframes fadeSlideIn {
   from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Challenge banner border sweep */
+@keyframes borderRotate {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Pulsing glow for challenge banner */
+@keyframes challengeGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 18px 2px rgba(168, 85, 247, 0.45),
+      0 0 40px 6px rgba(99, 102, 241, 0.25),
+      inset 0 0 20px rgba(139, 92, 246, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 32px 6px rgba(168, 85, 247, 0.65),
+      0 0 70px 14px rgba(99, 102, 241, 0.35),
+      inset 0 0 32px rgba(139, 92, 246, 0.14);
+  }
+}
+
+/* Trophy pulse */
+@keyframes trophyPulse {
+  0%, 100% { transform: scale(1) rotate(-5deg); filter: drop-shadow(0 0 6px rgba(251,191,36,0.5)); }
+  50%       { transform: scale(1.18) rotate(5deg); filter: drop-shadow(0 0 16px rgba(251,191,36,0.9)); }
+}
+
+/* Points badge shine */
+@keyframes pointsShine {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Floating sparkles on banner */
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0) translateY(0); }
+  50%       { opacity: 1; transform: scale(1) translateY(-8px); }
+}
+
+/* Audio button pulse */
+@keyframes audioPulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.08); }
+}
+
+/* Challenge reveal overlay shimmer */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
 html {
   overflow-y: auto;
   overflow-x: hidden;
@@ -41,30 +95,253 @@ body {
   min-height: 100vh;
 }
 
-#root {
-  min-height: 100vh;
+#root { min-height: 100vh; }
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.5); }
+::selection { background: rgba(139,92,246,0.4); color: white; }
+
+/* ─── Challenge Banner ───────────────────────────────────────────────────── */
+.challenge-banner-wrap {
+  position: relative;
+  border-radius: 16px;
+  padding: 2px;          /* room for glow border */
+  background: linear-gradient(135deg,
+    rgba(139,92,246,0.7) 0%,
+    rgba(99,102,241,0.6) 30%,
+    rgba(168,85,247,0.7) 60%,
+    rgba(250,204,21,0.5) 100%
+  );
+  animation: challengeGlow 2.8s ease-in-out infinite;
+  will-change: box-shadow;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
+.challenge-banner-glow {
+  position: absolute;
+  inset: -3px;
+  border-radius: 18px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(168,85,247,0.0),
+    rgba(168,85,247,0.7),
+    rgba(250,204,21,0.6),
+    rgba(99,102,241,0.7),
+    rgba(168,85,247,0.0)
+  );
+  animation: borderRotate 4s linear infinite;
+  z-index: -1;
+  opacity: 0.6;
+  filter: blur(4px);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+.challenge-banner-inner {
+  position: relative;
+  background: linear-gradient(135deg,
+    rgba(15,10,40,0.97) 0%,
+    rgba(20,10,55,0.96) 50%,
+    rgba(15,10,40,0.97) 100%
+  );
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  overflow: hidden;
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.3);
-  border-radius: 3px;
+/* Subtle inner shimmer sweep */
+.challenge-banner-inner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255,255,255,0.04) 50%,
+    transparent 70%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.5);
+.challenge-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
 }
 
-/* Selection */
-::selection {
-  background: rgba(139, 92, 246, 0.4);
+.challenge-trophy {
+  font-size: 2rem;
+  line-height: 1;
+  animation: trophyPulse 2.2s ease-in-out infinite;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.challenge-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.challenge-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.challenge-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(196, 181, 253, 0.7);
+}
+
+.challenge-round-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(103, 232, 249, 0.85);
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.challenge-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  background: linear-gradient(90deg, #e879f9, #a78bfa, #fbbf24, #f472b6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.challenge-condition {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(216, 180, 254, 0.75);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.challenge-points-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(245,158,11,0.15));
+  border: 2px solid rgba(251,191,36,0.4);
+  border-radius: 12px;
+  padding: 6px 12px;
+  min-width: 54px;
+  position: relative;
+  overflow: hidden;
+}
+
+.challenge-points-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(251,191,36,0.25) 50%,
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: pointsShine 2s ease-in-out infinite;
+}
+
+.challenge-points-value {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: #fbbf24;
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(251,191,36,0.6);
+}
+
+.challenge-points-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: rgba(251,191,36,0.65);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ─── Audio Controls ─────────────────────────────────────────────────────── */
+.audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.audio-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.18s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.audio-btn:hover {
+  background: rgba(139,92,246,0.2);
+  border-color: rgba(139,92,246,0.4);
   color: white;
+  transform: scale(1.08);
+}
+
+.audio-btn.active {
+  background: rgba(139,92,246,0.25);
+  border-color: rgba(139,92,246,0.5);
+  color: #c084fc;
+  animation: audioPulse 2s ease-in-out infinite;
+}
+
+.audio-btn.muted {
+  opacity: 0.45;
+}
+
+/* ─── Challenge reveal overlay extras ───────────────────────────────────── */
+.challenge-reveal-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.challenge-reveal-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: sparkle 1.6s ease-in-out infinite;
 }

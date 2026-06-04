@@ -11,6 +11,17 @@ import { VisibilityVote } from './VisibilityVote';
 import { Scoreboard } from './Scoreboard';
 import { FunnyCardModal } from './FunnyCardModal';
 import { RulesModal } from './RulesModal';
+import {
+  useAudio,
+  sfxChallengeReveal,
+  sfxDrawCard,
+  sfxDiscardCard,
+  sfxTawa,
+  sfxRoundWin,
+  sfxGameOver,
+  sfxYourTurn,
+  sfxClick,
+} from '@/lib/useAudio';
 
 export const GameBoard: React.FC = () => {
   const store = useGameStore();
@@ -21,14 +32,20 @@ export const GameBoard: React.FC = () => {
   const currentUserId = useRoomStore(s => s.userId);
   const isHost = useRoomStore(s => s.isHost);
 
+  // ── Audio ──
+  const { musicEnabled, sfxEnabled, toggleMusic, toggleSfx, initAudio } = useAudio();
+  const audioInitRef = useRef(false);
+  const prevPhaseRef = useRef(store.phase);
+  const prevPlayerIndexRef = useRef(store.currentPlayerIndex);
+  const prevHasDrawnRef = useRef(store.hasDrawn);
+  const prevHasDiscardedRef = useRef(store.hasDiscarded);
+
   // Safely handle players array (defensive against Firebase serialization)
   const players = Array.isArray(store.players) ? store.players : [];
   const drawPile = Array.isArray(store.drawPile) ? store.drawPile : [];
   const discardPile = Array.isArray(store.discardPile) ? store.discardPile : [];
 
   // ── KEY FIX: Each player sees THEIR OWN hand ──
-  // Host's player ID is always 'player-human' (hardcoded in gameEngine)
-  // Joiner's player ID is their Firebase UID (set when host merges room players)
   const humanPlayer = isHost
     ? players.find(p => p.id === 'player-human')
     : players.find(p => p.id === currentUserId);
@@ -37,8 +54,50 @@ export const GameBoard: React.FC = () => {
   const currentPlayer = players[store.currentPlayerIndex];
   const isHumanTurn = currentPlayer && currentPlayer.id === humanPlayer?.id;
 
-  // Challenge reveal animation — ONLY auto-advance on host side.
-  // Joiners receive the phase change from Firebase.
+  // ── Init audio on first human interaction ──
+  const handleFirstInteraction = () => {
+    if (!audioInitRef.current) {
+      audioInitRef.current = true;
+      initAudio();
+    }
+  };
+
+  // ── SFX: fire on state changes ──
+  useEffect(() => {
+    const phase = store.phase;
+    const prevPhase = prevPhaseRef.current;
+
+    if (phase !== prevPhase) {
+      if (phase === 'draw_challenge') sfxChallengeReveal();
+      if (phase === 'tawa_called') sfxTawa();
+      if (phase === 'game_end') sfxGameOver();
+      if (phase === 'round_end' && prevPhase === 'tawa_called') sfxRoundWin();
+      prevPhaseRef.current = phase;
+    }
+  }, [store.phase]);
+
+  useEffect(() => {
+    if (store.hasDrawn && !prevHasDrawnRef.current) sfxDrawCard();
+    prevHasDrawnRef.current = store.hasDrawn;
+  }, [store.hasDrawn]);
+
+  useEffect(() => {
+    if (store.hasDiscarded && !prevHasDiscardedRef.current) sfxDiscardCard();
+    prevHasDiscardedRef.current = store.hasDiscarded;
+  }, [store.hasDiscarded]);
+
+  useEffect(() => {
+    if (
+      store.currentPlayerIndex !== prevPlayerIndexRef.current &&
+      isHumanTurn &&
+      store.phase === 'playing'
+    ) {
+      sfxYourTurn();
+    }
+    prevPlayerIndexRef.current = store.currentPlayerIndex;
+  }, [store.currentPlayerIndex, isHumanTurn, store.phase]);
+
+  // ── Challenge reveal animation — ONLY auto-advance on host side ──
   useEffect(() => {
     if (store.phase === 'draw_challenge') {
       setShowChallengeReveal(true);
@@ -54,7 +113,7 @@ export const GameBoard: React.FC = () => {
     }
   }, [store.phase, store.round, isHost]);
 
-  // Bot turn processing — Host only (bots run on host's device)
+  // ── Bot turn processing — Host only ──
   useEffect(() => {
     if (isHost && store.phase === 'playing' && currentPlayer?.isBot && !store.pendingEffect) {
       if (botTimerRef.current) clearTimeout(botTimerRef.current);
@@ -67,7 +126,7 @@ export const GameBoard: React.FC = () => {
     }
   }, [store.phase, store.currentPlayerIndex, currentPlayer?.isBot, store.pendingEffect, isHost]);
 
-  // Auto-advance blocked human player's turn
+  // ── Auto-advance blocked human player's turn ──
   useEffect(() => {
     if (
       store.phase === 'playing' &&
@@ -83,32 +142,127 @@ export const GameBoard: React.FC = () => {
     }
   }, [store.phase, isHumanTurn, humanPlayer?.isBlocked, store.hasDrawn, store.pendingEffect]);
 
-  // Reset selected card when turn changes
+  // ── Reset selected card when turn changes ──
   useEffect(() => {
     setSelectedCardIndex(null);
   }, [store.currentPlayerIndex]);
 
-  // Challenge reveal overlay
+  // ─── Audio Controls UI ───────────────────────────────────────────────────
+  const AudioControls = () => (
+    <div className="audio-controls">
+      <button
+        className={`audio-btn ${musicEnabled ? 'active' : 'muted'}`}
+        onClick={() => { sfxClick(); toggleMusic(); }}
+        title={musicEnabled ? 'Mute Music' : 'Unmute Music'}
+      >
+        {musicEnabled ? '🎵' : '🔇'}
+      </button>
+      <button
+        className={`audio-btn ${sfxEnabled ? 'active' : 'muted'}`}
+        onClick={() => { toggleSfx(); }}
+        title={sfxEnabled ? 'Mute SFX' : 'Unmute SFX'}
+      >
+        {sfxEnabled ? '🔊' : '🔕'}
+      </button>
+    </div>
+  );
+
+  // ─── Challenge reveal overlay ────────────────────────────────────────────
   if (showChallengeReveal && store.currentChallenge) {
+    const particles = [
+      { color: '#a855f7', left: '10%', top: '20%', delay: '0s' },
+      { color: '#fbbf24', left: '85%', top: '15%', delay: '0.3s' },
+      { color: '#22d3ee', left: '20%', top: '75%', delay: '0.5s' },
+      { color: '#f472b6', left: '75%', top: '70%', delay: '0.8s' },
+      { color: '#a3e635', left: '50%', top: '10%', delay: '1s' },
+      { color: '#f97316', left: '40%', top: '85%', delay: '0.2s' },
+      { color: '#818cf8', left: '60%', top: '30%', delay: '0.6s' },
+      { color: '#fb7185', left: '30%', top: '50%', delay: '1.2s' },
+    ];
+
     return (
-      <div className="fixed inset-0 bg-gradient-to-br from-gray-950 via-indigo-950 to-purple-950 z-50 flex items-center justify-center">
-        <div className="text-center" style={{ animation: 'fadeIn 0.5s ease-out' }}>
-          <div className="text-7xl mb-5 animate-bounce">🏆</div>
-          <h2 className="text-white/50 text-xs uppercase tracking-[0.3em] mb-3">Round {store.round} Challenge</h2>
-          <h1 className="text-white font-black text-5xl mb-4 drop-shadow-lg">{store.currentChallenge.tunisianName}</h1>
-          <p className="text-purple-200/80 text-lg mb-4 max-w-md mx-auto">{store.currentChallenge.condition}</p>
-          <div className="inline-flex items-center gap-2 bg-amber-500/20 px-5 py-2.5 rounded-full border border-amber-500/30">
-            <span className="text-amber-300 font-bold text-lg">+{store.currentChallenge.points} points</span>
+      <div
+        className="fixed inset-0 bg-gradient-to-br from-gray-950 via-indigo-950 to-purple-950 z-50 flex items-center justify-center"
+        style={{ animation: 'fadeIn 0.4s ease-out' }}
+      >
+        {/* Floating particles */}
+        <div className="challenge-reveal-particles">
+          {particles.map((p, i) => (
+            <div
+              key={i}
+              className="challenge-reveal-particle"
+              style={{
+                left: p.left,
+                top: p.top,
+                background: p.color,
+                animationDelay: p.delay,
+                width: i % 3 === 0 ? '10px' : '6px',
+                height: i % 3 === 0 ? '10px' : '6px',
+                boxShadow: `0 0 10px ${p.color}`,
+              }}
+            />
+          ))}
+        </div>
+
+        <div
+          className="text-center px-6 max-w-lg w-full"
+          style={{ animation: 'slideUp 0.5s ease-out' }}
+        >
+          {/* Decorative ring */}
+          <div className="relative inline-block mb-5">
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: 'conic-gradient(from 0deg, #a855f7, #fbbf24, #22d3ee, #f472b6, #a855f7)',
+                animation: 'borderRotate 2s linear infinite',
+                filter: 'blur(8px)',
+                opacity: 0.7,
+                transform: 'scale(1.3)',
+              }}
+            />
+            <div className="text-7xl relative z-10 animate-bounce">🏆</div>
           </div>
+
+          <p className="text-white/40 text-xs uppercase tracking-[0.35em] mb-3 font-bold">
+            Round {store.round} Challenge
+          </p>
+
+          <h1
+            className="font-black text-5xl mb-4 drop-shadow-lg"
+            style={{
+              background: 'linear-gradient(90deg, #e879f9, #a78bfa, #fbbf24, #f472b6)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            {store.currentChallenge.tunisianName}
+          </h1>
+
+          <p className="text-purple-200/80 text-base mb-6 leading-relaxed">
+            {store.currentChallenge.condition}
+          </p>
+
+          <div
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(251,191,36,0.25), rgba(245,158,11,0.15))',
+              border: '2px solid rgba(251,191,36,0.5)',
+              boxShadow: '0 0 24px rgba(251,191,36,0.3)',
+              color: '#fbbf24',
+            }}
+          >
+            ⭐ +{store.currentChallenge.points} points
+          </div>
+
           {!isHost && (
-            <div className="mt-4 text-white/30 text-xs animate-pulse">⏳ Waiting for host...</div>
+            <div className="mt-5 text-white/30 text-xs animate-pulse">⏳ Waiting for host...</div>
           )}
         </div>
       </div>
     );
   }
 
-  // Choice circle
+  // ─── Choice circle ───────────────────────────────────────────────────────
   if (store.phase === 'choice_circle') {
     if (isHost) {
       return <VisibilityVote onSelect={(mode) => store.selectVisibility(mode)} />;
@@ -128,7 +282,7 @@ export const GameBoard: React.FC = () => {
     );
   }
 
-  // Tawa called
+  // ─── Tawa called ─────────────────────────────────────────────────────────
   if (store.phase === 'tawa_called') {
     const caller = players.find(p => p.id === store.tawaCallerId);
     return (
@@ -195,7 +349,7 @@ export const GameBoard: React.FC = () => {
 
             {isHost && (
               <button
-                onClick={() => store.proceedToNextRound()}
+                onClick={() => { sfxClick(); store.proceedToNextRound(); }}
                 className="px-8 py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-cyan-500/30 transition-all hover:scale-105 active:scale-95"
               >
                 {store.round >= store.maxRounds ? '🏆 Final Results' : '➡️ Next Round'}
@@ -210,7 +364,7 @@ export const GameBoard: React.FC = () => {
     );
   }
 
-  // Round end
+  // ─── Round end ───────────────────────────────────────────────────────────
   if (store.phase === 'round_end') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-950 via-indigo-950 to-purple-950 flex flex-col items-center justify-center p-4 gap-6">
@@ -219,7 +373,7 @@ export const GameBoard: React.FC = () => {
         <Scoreboard players={players} roundWinner={store.roundWinner} />
         {isHost && (
           <button
-            onClick={() => store.proceedToNextRound()}
+            onClick={() => { sfxClick(); store.proceedToNextRound(); }}
             className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-bold hover:opacity-90 transition-opacity hover:scale-105 active:scale-95"
           >
             ➡️ Next Round
@@ -232,7 +386,7 @@ export const GameBoard: React.FC = () => {
     );
   }
 
-  // Game end
+  // ─── Game end ─────────────────────────────────────────────────────────────
   if (store.phase === 'game_end') {
     const winner = players.find(p => p.id === store.winner);
     const sorted = [...players].sort((a, b) => b.score - a.score);
@@ -253,8 +407,7 @@ export const GameBoard: React.FC = () => {
             {sorted.map((p, i) => (
               <div
                 key={p.id}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl ${i === 0 ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-white/5'
-                  }`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl ${i === 0 ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-white/5'}`}
               >
                 <span className="text-xl w-8 text-center">
                   {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
@@ -268,6 +421,7 @@ export const GameBoard: React.FC = () => {
 
         <button
           onClick={() => {
+            sfxClick();
             const name = humanPlayer?.name || 'Player';
             store.initGame(name, opponents.length);
           }}
@@ -279,7 +433,7 @@ export const GameBoard: React.FC = () => {
     );
   }
 
-  // Main game view — show "syncing" if humanPlayer not found yet
+  // ─── Syncing ──────────────────────────────────────────────────────────────
   if (!humanPlayer) {
     return (
       <div className="fixed inset-0 bg-gradient-to-br from-gray-950 via-indigo-950 to-purple-950 z-50 flex items-center justify-center p-4">
@@ -297,8 +451,14 @@ export const GameBoard: React.FC = () => {
     );
   }
 
+  // ─── Main game view ───────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-indigo-950 to-purple-950 relative overflow-hidden">
+    <div
+      className="min-h-screen bg-gradient-to-br from-gray-950 via-indigo-950 to-purple-950 relative overflow-hidden"
+      onClick={handleFirstInteraction}
+      onKeyDown={handleFirstInteraction}
+    >
+      {/* Background orbs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-blue-500/[0.03] rounded-full blur-[100px]" />
         <div className="absolute bottom-0 left-1/4 w-[600px] h-[300px] bg-purple-500/[0.03] rounded-full blur-[100px]" />
@@ -306,8 +466,10 @@ export const GameBoard: React.FC = () => {
       </div>
 
       <div className="relative z-10 flex flex-col min-h-screen p-3 gap-3">
+        {/* ── Top bar: challenge + controls ── */}
         <div className="flex items-start gap-3">
-          <div className="flex-1">
+          {/* Challenge banner — now takes most of the width */}
+          <div className="flex-1 min-w-0">
             {store.currentChallenge && (
               <ChallengeBanner
                 challenge={store.currentChallenge}
@@ -316,22 +478,28 @@ export const GameBoard: React.FC = () => {
               />
             )}
           </div>
-          <div className="flex flex-col gap-1.5 items-end">
+
+          {/* Right controls */}
+          <div className="flex flex-col gap-1.5 items-end flex-shrink-0">
             <div className="bg-white/5 rounded-lg px-2.5 py-1 border border-white/10">
               <span className="text-[10px] text-white/40">Room </span>
               <span className="text-cyan-400 font-bold text-xs">{store.roomId}</span>
             </div>
-            <button
-              onClick={() => store.setShowRules(true)}
-              className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors text-white/60 hover:text-white text-sm"
-              title="Rules"
-            >
-              📖
-            </button>
+            {/* Audio + Rules in a row */}
+            <div className="flex items-center gap-1.5">
+              <AudioControls />
+              <button
+                onClick={() => { sfxClick(); store.setShowRules(true); }}
+                className="audio-btn"
+                title="Rules"
+              >
+                📖
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Opponents: for host = [joiner, bots], for joiner = [host, bots] */}
+        {/* Opponents */}
         <div className="flex flex-wrap justify-center gap-3 px-2">
           {opponents.map(p => (
             <OpponentBoard
@@ -345,6 +513,7 @@ export const GameBoard: React.FC = () => {
           ))}
         </div>
 
+        {/* Draw / Discard piles */}
         <div className="flex-1 flex items-center justify-center py-2">
           <ActionPanel
             drawPileCount={drawPile.length}
@@ -358,7 +527,7 @@ export const GameBoard: React.FC = () => {
           />
         </div>
 
-        {/* YOUR hand — each player sees their own cards */}
+        {/* Player hand + TAWA button */}
         <div className="flex flex-col items-center gap-3 pb-2">
           <PlayerHand
             player={humanPlayer}
@@ -376,11 +545,12 @@ export const GameBoard: React.FC = () => {
           />
 
           <TawaButton
-            onTawa={() => store.performTawa(humanPlayer.id)}
+            onTawa={() => { store.performTawa(humanPlayer.id); }}
             disabled={store.phase !== 'playing'}
           />
         </div>
 
+        {/* Player turn indicators */}
         <div className="flex justify-center gap-3 py-1.5 flex-wrap">
           {players.map(p => {
             const isCurrent = players[store.currentPlayerIndex]?.id === p.id;
@@ -404,6 +574,7 @@ export const GameBoard: React.FC = () => {
         </div>
       </div>
 
+      {/* Effect modal */}
       {store.pendingEffect && isHumanTurn && (
         <EffectModal
           effect={store.pendingEffect}
@@ -422,10 +593,10 @@ export const GameBoard: React.FC = () => {
         />
       )}
 
+      {/* Rules modal */}
       {store.showRules && (
         <RulesModal onClose={() => store.setShowRules(false)} />
       )}
     </div>
   );
 };
-
