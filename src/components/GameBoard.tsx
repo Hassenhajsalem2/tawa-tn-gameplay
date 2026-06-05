@@ -11,6 +11,8 @@ import { VisibilityVote } from './VisibilityVote';
 import { Scoreboard } from './Scoreboard';
 import { FunnyCardModal } from './FunnyCardModal';
 import { RulesModal } from './RulesModal';
+import { SpecialCardToast } from './SpecialCardToast';
+import { SpecialCard } from '@/types/game';
 import {
   useAudio,
   sfxChallengeReveal,
@@ -28,6 +30,9 @@ export const GameBoard: React.FC = () => {
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [showChallengeReveal, setShowChallengeReveal] = useState(false);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Special card toast
+  const [specialToast, setSpecialToast] = useState<{ card: SpecialCard; playerName: string } | null>(null);
+  const prevDiscardTopRef = useRef<string | null>(null);
 
   const currentUserId = useRoomStore(s => s.userId);
   const isHost = useRoomStore(s => s.isHost);
@@ -146,6 +151,22 @@ export const GameBoard: React.FC = () => {
   useEffect(() => {
     setSelectedCardIndex(null);
   }, [store.currentPlayerIndex]);
+
+  // ── Special card toast: fire when discard top changes to a special card ──
+  useEffect(() => {
+    const top = discardPile[0];
+    if (!top) return;
+    if (top.id === prevDiscardTopRef.current) return;
+    prevDiscardTopRef.current = top.id;
+    if (top.type === 'special' && store.phase === 'playing') {
+      // Find who just played (the previous player — currentPlayerIndex already advanced)
+      const playerCount = players.length;
+      const prevIdx = (store.currentPlayerIndex - 1 + playerCount) % playerCount;
+      const playerName = players[prevIdx]?.name || 'Someone';
+      setSpecialToast({ card: top as SpecialCard, playerName });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discardPile[0]?.id]);
 
   // ─── Audio Controls UI ───────────────────────────────────────────────────
   const AudioControls = () => (
@@ -596,6 +617,15 @@ export const GameBoard: React.FC = () => {
       {/* Rules modal */}
       {store.showRules && (
         <RulesModal onClose={() => store.setShowRules(false)} />
+      )}
+
+      {/* Special card toast */}
+      {specialToast && (
+        <SpecialCardToast
+          card={specialToast.card}
+          playerName={specialToast.playerName}
+          onDone={() => setSpecialToast(null)}
+        />
       )}
     </div>
   );

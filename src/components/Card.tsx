@@ -92,6 +92,8 @@ export const Card: React.FC<CardProps> = ({
 
   // Special card
   const specCard = card as SpecialCard;
+  // Per-type CSS class drives card-specific animated glow/border
+  const specialClass = `card-special-${specCard.name}`;
 
   return (
     <div
@@ -99,19 +101,35 @@ export const Card: React.FC<CardProps> = ({
       className={`
         relative rounded-xl border-2 cursor-pointer select-none transition-all duration-200
         bg-gradient-to-br from-violet-800 to-purple-950 border-violet-400/70
+        ${specialClass}
         ${small ? 'w-10 h-14' : 'w-16 h-[88px]'}
         ${selected ? 'ring-2 ring-yellow-400 -translate-y-3 shadow-xl shadow-yellow-500/40' : ''}
         ${highlighted ? 'hover:-translate-y-1.5 hover:shadow-xl hover:border-violet-300' : ''}
         ${glowing ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-500/40' : ''}
       `}
     >
-      {/* Star corners */}
-      <div className="absolute top-0.5 left-1 text-[8px] text-violet-300/60">★</div>
-      <div className="absolute bottom-0.5 right-1 text-[8px] text-violet-300/60 rotate-180">★</div>
+      {/* Animated corner accents */}
+      <div className="absolute top-0.5 left-1 text-[8px] text-violet-300/70">★</div>
+      <div className="absolute bottom-0.5 right-1 text-[8px] text-violet-300/70 rotate-180">★</div>
 
-      {/* Icon */}
+      {/* Subtle inner shimmer */}
+      {!small && (
+        <div
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 60%)',
+          }}
+        />
+      )}
+
+      {/* Icon + labels */}
       <div className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 ${small ? '' : 'pt-1'}`}>
-        <span className={small ? 'text-base' : 'text-xl'}>{specCard.icon}</span>
+        <span
+          className={small ? 'text-base' : 'text-2xl'}
+          style={{ filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.35))' }}
+        >
+          {specCard.icon}
+        </span>
         {!small && (
           <>
             <span className="text-white font-bold text-[9px] text-center leading-tight px-0.5 line-clamp-2">

@@ -14,7 +14,7 @@ import {
 } from '@/data/cards';
 import { validateTawaCall } from './challengeValidator';
 
-const BOT_NAMES = ['Aziz 🇹🇳', 'Yasmine 🌸', 'Khalil 🎯', 'Meriem ⭐', 'Nour 🌙'];
+const BOT_NAMES = ['Hassen 🇹🇳', 'Oumaima 🌸', 'Khaled 🎯', 'Tasnime ⭐', 'Bader 🌙', 'Khalil 🤖', 'Omar 👽'];
 
 export function createInitialState(playerName: string, botCount: number = 2, roomId?: string): GameState {
   const playerId = 'player-human';

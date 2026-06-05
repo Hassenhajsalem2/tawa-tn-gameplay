@@ -18,6 +18,8 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
   canDraw,
   message,
 }) => {
+  const isSpecialOnTop = topDiscard?.type === 'special';
+
   return (
     <div className="flex items-center justify-center gap-8">
       {/* Draw Pile */}
@@ -46,7 +48,35 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({
       <div className="flex flex-col items-center gap-2">
         <span className="text-white/40 text-[10px] uppercase tracking-wider font-bold">Discard</span>
         {topDiscard ? (
-          <Card card={topDiscard} />
+          <div className="relative">
+            {/* Special card glow ring */}
+            {isSpecialOnTop && (
+              <div
+                className="absolute -inset-2 rounded-2xl pointer-events-none"
+                style={{
+                  background: 'conic-gradient(from 0deg, #a855f7, #f472b6, #fbbf24, #22d3ee, #a855f7)',
+                  animation: 'borderRotate 2s linear infinite',
+                  opacity: 0.55,
+                  filter: 'blur(5px)',
+                }}
+              />
+            )}
+            <Card card={topDiscard} />
+            {/* SPECIAL badge */}
+            {isSpecialOnTop && (
+              <div
+                className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-black px-2 py-0.5 rounded-full whitespace-nowrap"
+                style={{
+                  background: 'linear-gradient(90deg, #a855f7, #f472b6)',
+                  color: 'white',
+                  boxShadow: '0 0 10px rgba(168,85,247,0.6)',
+                  letterSpacing: '0.08em',
+                }}
+              >
+                ✨ SPECIAL
+              </div>
+            )}
+          </div>
         ) : (
           <div className="w-16 h-[88px] rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center text-white/20 text-xs">
             Empty
